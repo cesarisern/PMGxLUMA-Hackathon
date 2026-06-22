@@ -6,8 +6,7 @@ Usage:
     python fetch_feeds.py --cached                # load from data/ (demo fallback)
     python fetch_feeds.py \\
         --brand-url https://www.example.com \\
-        --campaign "campaign description" \\
-        --keywords "keyword1,keyword2,keyword3"
+        --campaign "campaign description"
 
 Outputs:
     data/brand_corpus.json
@@ -57,12 +56,12 @@ def prompt(label: str, hint: str = "") -> str:
     return value
 
 
-def collect_inputs(args: argparse.Namespace) -> tuple[str, str, list[str]]:
+def collect_inputs(args: argparse.Namespace) -> tuple[str, str]:
     print("\n=== Dynamic Voice API — feed configuration ===")
 
     brand_url = args.brand_url or prompt(
         "Brand URL",
-        hint="e.g. https://www.example.com — leave blank to skip website scrape",
+        hint="e.g. https://www.example.com",
     )
 
     campaign = args.campaign or prompt(
@@ -70,20 +69,12 @@ def collect_inputs(args: argparse.Namespace) -> tuple[str, str, list[str]]:
         hint="describe the campaign angle, moment, and audience in plain English",
     )
 
-    if args.keywords:
-        keywords = [k.strip() for k in args.keywords.split(",")]
-    else:
-        raw = input(
-            f"\nTrend keywords (comma-separated, or press Enter to auto-derive from campaign)\n> "
-        ).strip()
-        keywords = [k.strip() for k in raw.split(",")] if raw else None
-
-    return brand_url, campaign, keywords
+    return brand_url, campaign
 
 
-def derive_keywords(client, campaign: str) -> list[str]:
-    """Ask Claude to suggest 4 Google Trends keywords from the campaign description."""
-    print("[trends] Deriving keywords from campaign description...")
+def derive_keywords(client, brand_corpus: dict, campaign: str) -> list[str]:
+    """Derive 4 Google Trends keywords from the brand corpus + campaign description."""
+    print("[trends] Deriving keywords from brand and campaign...")
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=256,
@@ -91,14 +82,20 @@ def derive_keywords(client, campaign: str) -> list[str]:
         messages=[{
             "role": "user",
             "content": (
-                f"Given this campaign description: \"{campaign}\"\n"
+                f"Brand: {brand_corpus.get('brand_name')}\n"
+                f"Target audience: {brand_corpus.get('target_audience')}\n"
+                f"Core values: {brand_corpus.get('core_values')}\n"
+                f"Campaign: {campaign}\n\n"
                 "Suggest 4 short Google Trends search keywords that would measure "
-                "audience interest relevant to this campaign.\n"
+                "audience interest relevant to this brand and campaign. "
+                "Keywords should be what this audience actually searches for.\n"
                 "Output a JSON array of 4 strings only."
             ),
         }],
     )
-    return json.loads(response.content[0].text)
+    keywords = json.loads(response.content[0].text)
+    print(f"[trends] Keywords: {keywords}")
+    return keywords
 
 
 def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
@@ -120,12 +117,7 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
             results[key] = data
         return results
 
-    brand_url, campaign, keywords = collect_inputs(args)
-
-    if keywords is None:
-        keywords = derive_keywords(client, campaign)
-        print(f"[trends] Using keywords: {keywords}")
-
+    brand_url, campaign = collect_inputs(args)
     results = {}
 
     # Feed 1 — brand_corpus
@@ -136,7 +128,8 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
     results["context"] = context.fetch(client, query=campaign)
     save("context", results["context"])
 
-    # Feed 3 — trend_signal
+    # Feed 3 — trend_signal (keywords derived from brand + campaign)
+    keywords = derive_keywords(client, results["brand"], campaign)
     try:
         results["trends"] = trends.fetch(keywords=keywords)
         save("trends", results["trends"])
@@ -157,9 +150,8 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch all 3 data feeds.")
-    parser.add_argument("--brand-url",  help="Brand website URL")
-    parser.add_argument("--campaign",   help="Campaign description (plain English)")
-    parser.add_argument("--keywords",   help="Trend keywords, comma-separated")
-    parser.add_argument("--cached",     action="store_true", help="Load from data/ (demo fallback)")
+    parser.add_argument("--brand-url", help="Brand website URL")
+    parser.add_argument("--campaign",  help="Campaign description (plain English)")
+    parser.add_argument("--cached",    action="store_true", help="Load from data/ (demo fallback)")
     args = parser.parse_args()
     run(cached=args.cached, args=args)
