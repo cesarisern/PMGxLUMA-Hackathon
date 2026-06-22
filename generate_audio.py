@@ -114,7 +114,7 @@ def run(run_id: int = None, limit: int = None) -> list:
                 },
             },
             "numAds": 1,
-            "engine": "agentic"
+            "engine": "agentic",
         }
 
     # Submit all concurrently
