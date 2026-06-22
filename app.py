@@ -87,8 +87,30 @@ def _submit_brief(body: dict) -> str:
     return r.json()["data"]["audioforms"][0]["audioformId"]
 
 
+def recommend_music(query_text: str) -> str | None:
+    """Semantically match a background track from the sound-template library.
+
+    /creator/brief never auto-selects music — it only adds a track when given
+    an explicit alias. We pick one by semantic search on the brand tone.
+    """
+    if not query_text:
+        query_text = "upbeat inspiring"
+    try:
+        r = requests.post(
+            f"{BASE}/assets/sound-templates/query",
+            headers=_as_headers(),
+            json={"query": query_text, "pageLimit": 1},
+        )
+        r.raise_for_status()
+        temps = r.json()["data"]["soundTemplates"]
+        return temps[0]["alias"] if temps else None
+    except Exception:
+        return None
+
+
 def _make_brief(product_name, description, cta, audience, tone,
-                lang="en", accent=None) -> dict:
+                lang="en", accent=None, music_alias=None) -> dict:
+    sound_design = {"alias": music_alias, "useSmartFit": True} if music_alias else {"useSmartFit": True}
     return {
         "audioformVersion": "2",
         "engine":           "agentic",
@@ -102,7 +124,7 @@ def _make_brief(product_name, description, cta, audience, tone,
                 "toneOfScript":       tone,
             },
             "voices":  [{"accent": accent or ["american"], "voicePreset": "expressive"}],
-            "sounds":  {"soundDesign": {"useSmartFit": True}},
+            "sounds":  {"soundDesign": sound_design},
             "delivery": {
                 "loudnessPreset": "streaming",
                 "encoderPreset":  "wav",
@@ -198,9 +220,14 @@ with tab1:
             tone        = st.text_input("Tone",        value=f["tone"],        key="t1_tone")
             description = st.text_area("Description",  value=f["description"], key="t1_desc", height=100)
 
+        add_music = st.checkbox("🎵 Recommend background music (matched to tone)", value=True, key="t1_music")
+
         if st.button("🎙️ Generate Default Ad"):
-            body = _make_brief(p_name, description, cta, audience, tone)
             with st.spinner("Submitting brief to Audiostack… (~30s)"):
+                music_alias = recommend_music(tone) if add_music else None
+                if music_alias:
+                    st.caption(f"Music: **{music_alias}**")
+                body  = _make_brief(p_name, description, cta, audience, tone, music_alias=music_alias)
                 af_id = _submit_brief(body)
                 url   = _poll(af_id)
             if url:
@@ -258,6 +285,11 @@ with tab2:
                 description = (f"{f['description']}. Trend: {trend_line}".strip(". ")
                                if trend_line else f["description"])
 
+                # One track for the whole campaign — consistent sonic identity
+                music_alias = recommend_music(f["tone"])
+                if music_alias:
+                    st.caption(f"🎵 Campaign music: **{music_alias}**")
+
                 loc_map  = {l["name"]: l.get("cta_suffix", l["name"]) for l in locs}
                 sel_locs = [{"name": n, "cta_suffix": loc_map[n]} for n in selected]
 
@@ -267,7 +299,7 @@ with tab2:
                 def _gen_one(loc):
                     cta_loc = f"{f['cta']} — {loc['cta_suffix']}"
                     body    = _make_brief(f["product_name"], description, cta_loc,
-                                         f["audience"], f["tone"])
+                                         f["audience"], f["tone"], music_alias=music_alias)
                     af_id   = _submit_brief(body)
                     url     = _poll(af_id)
                     return {
@@ -326,12 +358,14 @@ with tab3:
         st.caption(f"Will generate with lang=`{lang_cfg['lang']}`, accent=`{lang_cfg['accent']}`")
 
         if st.button(f"🌍 Generate in {lang_choice}"):
-            body = _make_brief(
-                f["product_name"], f["description"], cta_translated,
-                f["audience"], f["tone"],
-                lang=lang_cfg["lang"], accent=lang_cfg["accent"],
-            )
             with st.spinner(f"Generating {lang_choice} ad… (~30s)"):
+                music_alias = recommend_music(f["tone"])
+                body = _make_brief(
+                    f["product_name"], f["description"], cta_translated,
+                    f["audience"], f["tone"],
+                    lang=lang_cfg["lang"], accent=lang_cfg["accent"],
+                    music_alias=music_alias,
+                )
                 af_id = _submit_brief(body)
                 url   = _poll(af_id)
 

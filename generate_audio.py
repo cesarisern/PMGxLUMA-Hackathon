@@ -49,6 +49,31 @@ def _poll(af_id: str, headers: dict, timeout: int = 180) -> str | None:
     return None
 
 
+def recommend_music(headers: dict, query_text: str) -> str | None:
+    """Semantically match a background track from the sound-template library.
+
+    The /creator/brief endpoint never auto-selects music — it only adds a track
+    when given an explicit alias. We pick one by semantic search on the brand tone.
+    """
+    if not query_text:
+        query_text = "upbeat inspiring"
+    try:
+        r = requests.post(
+            f"{BASE}/assets/sound-templates/query",
+            headers=headers,
+            json={"query": query_text, "pageLimit": 1},
+        )
+        r.raise_for_status()
+        temps = r.json()["data"]["soundTemplates"]
+        if temps:
+            alias = temps[0]["alias"]
+            print(f"[audio] Recommended music: '{alias}' (matched '{query_text}')")
+            return alias
+    except Exception as e:
+        print(f"[audio] Music recommendation failed ({e}) — proceeding without music")
+    return None
+
+
 def _submit_brief(location: str, brief_body: dict, headers: dict) -> tuple:
     """Returns (location, audioform_id)."""
     r = requests.post(f"{BASE}/creator/brief", headers=headers, json=brief_body)
@@ -92,6 +117,10 @@ def run(run_id: int = None, limit: int = None) -> list:
     tone_parts = brand.get("tone_of_voice", [])
     tone = ", ".join(tone_parts) if isinstance(tone_parts, list) else str(tone_parts)
 
+    # Recommend one music track for the whole campaign (consistent sonic identity)
+    music_alias = recommend_music(headers, tone)
+    sound_design = {"alias": music_alias, "useSmartFit": True} if music_alias else {"useSmartFit": True}
+
     def make_brief(loc: dict) -> dict:
         return {
             "audioformVersion": "2",
@@ -106,7 +135,7 @@ def run(run_id: int = None, limit: int = None) -> list:
                     "toneOfScript":       tone,
                 },
                 "voices": [{"accent": ["american"], "voicePreset": "expressive"}],
-                "sounds": {"soundDesign": {"useSmartFit": True}},
+                "sounds": {"soundDesign": sound_design},
                 "delivery": {
                     "loudnessPreset": "streaming",
                     "encoderPreset":  "wav",
