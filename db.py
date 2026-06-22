@@ -44,13 +44,13 @@ def init() -> None:
         );
 
         CREATE TABLE IF NOT EXISTS trend_signal (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id          INTEGER REFERENCES runs(id),
-            source          TEXT,
-            peak_keyword    TEXT,
-            traffic_signal  TEXT,
-            data            TEXT NOT NULL,
-            created_at      TEXT NOT NULL
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id                  INTEGER REFERENCES runs(id),
+            website_traffic_available  INTEGER,
+            search_trends_available    INTEGER,
+            traffic_signal          TEXT,
+            data                    TEXT NOT NULL,
+            created_at              TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS locations (
@@ -91,10 +91,12 @@ def save_context(run_id: int, data: dict) -> None:
 
 
 def save_trends(run_id: int, data: dict) -> None:
+    wt = data.get("website_traffic", {})
+    st = data.get("search_trends", {})
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO trend_signal (run_id, source, peak_keyword, traffic_signal, data, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (run_id, data.get("source"), data.get("peak_keyword"), data.get("traffic_signal"), json.dumps(data), _now()),
+            "INSERT INTO trend_signal (run_id, website_traffic_available, search_trends_available, traffic_signal, data, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (run_id, int(wt.get("available", False)), int(st.get("available", False)), data.get("traffic_signal"), json.dumps(data), _now()),
         )
 
 
