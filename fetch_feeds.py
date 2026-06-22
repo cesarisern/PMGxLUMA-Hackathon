@@ -61,9 +61,9 @@ def prompt(label: str, hint: str = "") -> str:
 def collect_inputs(args: argparse.Namespace) -> tuple[str, str]:
     print("\n=== Dynamic Voice API — feed configuration ===")
 
-    brand_url = args.brand_url or prompt(
-        "Brand URL",
-        hint="e.g. https://www.example.com",
+    brand_source = args.brand_url or prompt(
+        "Brand URL or name",
+        hint="e.g. https://www.example.com  OR  'US Youth Soccer'",
     )
 
     campaign = args.campaign or prompt(
@@ -71,7 +71,7 @@ def collect_inputs(args: argparse.Namespace) -> tuple[str, str]:
         hint="describe the campaign angle, moment, and audience in plain English",
     )
 
-    return brand_url, campaign
+    return brand_source, campaign
 
 
 def derive_keywords(client, brand_corpus: dict, campaign: str) -> list[str]:
@@ -122,16 +122,20 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
             results[key] = data
         return results
 
-    brand_url, campaign = collect_inputs(args)
+    brand_source, campaign = collect_inputs(args)
     results = {}
 
-    run_id = db.create_run(brand_url, campaign)
+    run_id = db.create_run(brand_source, campaign)
     print(f"[db] Run #{run_id} created")
 
-    # Feed 1 — brand_corpus
-    results["brand"] = brand.fetch(client, url=brand_url)
+    # Feed 1 — brand_corpus (accepts a brand URL or a brand name)
+    results["brand"] = brand.fetch(client, source=brand_source)
     save("brand", results["brand"])
     db.save_brand(run_id, results["brand"])
+
+    # Downstream feeds need a real URL. If a name was given, use the URL that
+    # Feed 1 resolved; fall back to the raw input.
+    brand_url = results["brand"].get("brand_url") or brand_source
 
     # Feed 2 — campaign_context
     results["context"] = context.fetch(client, query=campaign)
@@ -171,8 +175,8 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fetch all 3 data feeds.")
-    parser.add_argument("--brand-url", help="Brand website URL")
+    parser = argparse.ArgumentParser(description="Fetch all 4 data feeds.")
+    parser.add_argument("--brand-url", help="Brand website URL or brand name")
     parser.add_argument("--campaign",  help="Campaign description (plain English)")
     parser.add_argument("--cached",    action="store_true", help="Load from data/ (demo fallback)")
     args = parser.parse_args()

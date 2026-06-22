@@ -1,15 +1,18 @@
-"""Feed 1 — brand_corpus via Jina Reader + Anthropic extraction."""
+"""Feed 1 — brand_corpus from a brand URL (scrape) or a brand name (web search)."""
+
+import os
+import re
 
 import httpx
 from anthropic import Anthropic
 from feeds import parse_json
 
-SYSTEM = "Extract brand information from website content. Output only valid JSON. No commentary."
+SYSTEM = "Extract brand information from the provided content. Output only valid JSON. No commentary."
 
-PROMPT = """Extract a brand corpus from this website content.
+PROMPT = """Extract a brand corpus from this content.
 Output a single JSON object with exactly these fields:
 - brand_id: slugified name (string)
-- brand_url: the source URL (string)
+- brand_url: the brand's official URL if known, else "" (string)
 - brand_name: full brand name (string)
 - mission: mission statement (string)
 - core_values: list of 4-6 values (list of strings)
@@ -21,18 +24,64 @@ Output a single JSON object with exactly these fields:
 - compliance: list of content rules (list of strings)"""
 
 
-def fetch(client: Anthropic, url: str) -> dict:
+def _looks_like_url(value: str) -> bool:
+    """True if the input is a URL or bare domain, False if it's a plain brand name."""
+    value = value.strip()
+    if value.startswith(("http://", "https://")):
+        return True
+    # bare domain: no spaces and a dot followed by a TLD-like suffix
+    return " " not in value and bool(re.search(r"\.[a-z]{2,}$", value, re.IGNORECASE))
+
+
+def _scrape_url(url: str) -> tuple[str, str]:
+    """Returns (content, resolved_url)."""
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
     print(f"[brand] Fetching {url} via Jina Reader...")
-    raw = httpx.get(f"https://r.jina.ai/{url}", timeout=30).text
+    content = httpx.get(f"https://r.jina.ai/{url}", timeout=30).text
+    return content[:8000], url
+
+
+def _search_name(name: str) -> tuple[str, str]:
+    """Web-search a brand name. Returns (content, resolved_url='')."""
+    query = f"{name} brand official website mission values"
+    jina_key = os.getenv("JINA_API_KEY")
+    if jina_key:
+        print(f"[brand] Searching Jina for brand '{name}'...")
+        content = httpx.get(
+            f"https://s.jina.ai/{query}",
+            headers={"Accept": "text/plain", "Authorization": f"Bearer {jina_key}"},
+            timeout=30,
+        ).text
+    else:
+        print(f"[brand] No JINA_API_KEY — searching DuckDuckGo for brand '{name}'...")
+        ddg = f"https://lite.duckduckgo.com/lite/?q={query.replace(' ', '+')}"
+        content = httpx.get(f"https://r.jina.ai/{ddg}", timeout=30).text
+    return content[:8000], ""
+
+
+def fetch(client: Anthropic, source: str) -> dict:
+    """Build a brand corpus from either a brand URL or a brand name.
+
+    `source` may be a URL ("https://...", "example.com") or a plain name
+    ("US Youth Soccer"). URLs are scraped; names are web-searched.
+    """
+    if _looks_like_url(source):
+        content, resolved_url = _scrape_url(source)
+    else:
+        content, resolved_url = _search_name(source)
 
     print("[brand] Extracting brand corpus via Anthropic...")
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=SYSTEM,
-        messages=[{"role": "user", "content": PROMPT + "\n\nWebsite content:\n" + raw[:8000]}],
+        messages=[{"role": "user", "content": PROMPT + "\n\nContent:\n" + content}],
     )
     corpus = parse_json(response.content[0].text)
-    corpus["brand_url"] = url
+    # Prefer a scraped URL; otherwise keep whatever the model resolved.
+    if resolved_url:
+        corpus["brand_url"] = resolved_url
+    corpus.setdefault("brand_url", "")
     print(f"[brand] Done — {corpus.get('brand_name')}")
     return corpus
