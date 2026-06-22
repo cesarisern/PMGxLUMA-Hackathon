@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 data/pipeline.db
+data/pipeline.db-shm
+data/pipeline.db-wal
+data/*.json

@@ -62,6 +62,16 @@ def init() -> None:
             url             TEXT,
             created_at      TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS audio_outputs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id          INTEGER REFERENCES runs(id),
+            location        TEXT NOT NULL,
+            audioform_id    TEXT,
+            audio_url       TEXT,
+            status          TEXT,
+            created_at      TEXT NOT NULL
+        );
         """)
 
 
@@ -107,6 +117,16 @@ def save_locations(run_id: int, data: dict) -> None:
             conn.execute(
                 "INSERT INTO locations (run_id, name, location_type, cta_suffix, url, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (run_id, loc.get("name"), loc.get("type"), loc.get("cta_suffix"), loc.get("url"), now),
+            )
+
+
+def save_audio_outputs(run_id: int, results: list) -> None:
+    now = _now()
+    with get_conn() as conn:
+        for r in results:
+            conn.execute(
+                "INSERT INTO audio_outputs (run_id, location, audioform_id, audio_url, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, r.get("location"), r.get("audioform_id"), r.get("audio_url"), r.get("status"), now),
             )
 
 
