@@ -1,5 +1,5 @@
 """
-Fetch all 3 data feeds and save to data/.
+Fetch all 4 data feeds and save to data/.
 
 Usage:
     python fetch_feeds.py                         # interactive prompts
@@ -12,6 +12,7 @@ Outputs:
     data/brand_corpus.json
     data/campaign_context.json
     data/trend_signal.json
+    data/locations.json
 """
 
 import argparse
@@ -28,9 +29,10 @@ DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 FILES = {
-    "brand":   DATA_DIR / "brand_corpus.json",
-    "context": DATA_DIR / "campaign_context.json",
-    "trends":  DATA_DIR / "trend_signal.json",
+    "brand":     DATA_DIR / "brand_corpus.json",
+    "context":   DATA_DIR / "campaign_context.json",
+    "trends":    DATA_DIR / "trend_signal.json",
+    "locations": DATA_DIR / "locations.json",
 }
 
 
@@ -100,7 +102,7 @@ def derive_keywords(client, brand_corpus: dict, campaign: str) -> list[str]:
 
 def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
     from anthropic import Anthropic
-    from feeds import brand, context, trends
+    from feeds import brand, context, trends, locations
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -110,7 +112,7 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
 
     if cached:
         results = {}
-        for key in ("brand", "context", "trends"):
+        for key in ("brand", "context", "trends", "locations"):
             data = load_cached(key)
             if not data:
                 sys.exit(f"No cached {key} found. Run without --cached first to populate data/.")
@@ -141,10 +143,19 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
         else:
             sys.exit("[trends] No cached fallback. Run once without --cached to populate data/.")
 
+    # Feed 4 — locations (scraped from brand website)
+    results["locations"] = locations.fetch(
+        client,
+        brand_url=brand_url,
+        brand_name=results["brand"].get("brand_name", ""),
+    )
+    save("locations", results["locations"])
+
     print("\nAll feeds ready:")
     print(f"  brand_corpus     → {FILES['brand']}")
     print(f"  campaign_context → {FILES['context']}")
     print(f"  trend_signal     → {FILES['trends']}")
+    print(f"  locations        → {FILES['locations']}")
     return results
 
 
