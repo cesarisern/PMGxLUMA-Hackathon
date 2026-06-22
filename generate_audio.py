@@ -97,7 +97,6 @@ def run(run_id: int = None, limit: int = None) -> list:
         # and adds an appropriate background track itself.
         return {
             "audioformVersion": "2",
-            "engine":           "agentic",
             "brief": {
                 "script": {
                     "productName":        brand["brand_name"],
@@ -115,6 +114,7 @@ def run(run_id: int = None, limit: int = None) -> list:
                 },
             },
             "numAds": 1,
+            "engine": "agentic"
         }
 
     # Submit all concurrently
