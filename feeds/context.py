@@ -15,10 +15,7 @@ Output a single JSON object with exactly these fields:
 - campaign_angle: the core campaign message angle (string)
 - narrative_themes: 3 story angles the campaign can use (list of strings)
 - inspiring_stories: 2 concrete real-world examples or stories (list of strings)
-- cta_context: context around the sign-up call to action (string)
-
-Search results:
-{results}"""
+- cta_context: context around the sign-up call to action (string)"""
 
 
 def fetch(client: Anthropic, query: str) -> dict:
@@ -42,7 +39,7 @@ def fetch(client: Anthropic, query: str) -> dict:
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=SYSTEM,
-        messages=[{"role": "user", "content": PROMPT.format(results=results[:6000])}],
+        messages=[{"role": "user", "content": PROMPT + "\n\nSearch results:\n" + results[:6000]}],
     )
     context = parse_json(response.content[0].text)
     context["query"] = query

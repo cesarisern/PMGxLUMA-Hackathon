@@ -59,7 +59,6 @@ LANGUAGES = {
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-@st.cache_resource
 def _get_client():
     from anthropic import Anthropic
     return Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))

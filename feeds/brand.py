@@ -18,10 +18,7 @@ Output a single JSON object with exactly these fields:
 - required_messages: 2-4 messages the brand always communicates (list of strings)
 - banned_terms: terms incompatible with brand values (list of strings)
 - cta: primary call to action with URL (string)
-- compliance: list of content rules (list of strings)
-
-Website content:
-{content}"""
+- compliance: list of content rules (list of strings)"""
 
 
 def fetch(client: Anthropic, url: str) -> dict:
@@ -33,7 +30,7 @@ def fetch(client: Anthropic, url: str) -> dict:
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=SYSTEM,
-        messages=[{"role": "user", "content": PROMPT.format(content=raw[:8000])}],
+        messages=[{"role": "user", "content": PROMPT + "\n\nWebsite content:\n" + raw[:8000]}],
     )
     corpus = parse_json(response.content[0].text)
     corpus["brand_url"] = url

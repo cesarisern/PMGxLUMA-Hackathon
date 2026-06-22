@@ -20,10 +20,7 @@ Output a single JSON object with exactly these fields:
 - bounce_rate: bounce rate as a percentage e.g. 45.2, or null (float or null)
 - top_traffic_sources: list of top traffic source types e.g. ["direct", "search", "social"] (list)
 - top_pages: list of up to 5 top pages or sections driving traffic (list of strings)
-- signal: one sentence summarising the traffic trend (string)
-
-Content:
-{content}"""
+- signal: one sentence summarising the traffic trend (string)"""
 
 
 def _extract_domain(url: str) -> str:
@@ -43,7 +40,7 @@ def _fetch_website_traffic(client: Anthropic, domain: str) -> dict:
             model="claude-sonnet-4-6",
             max_tokens=512,
             system=SYSTEM,
-            messages=[{"role": "user", "content": SIMILARWEB_PROMPT.format(content=content[:6000])}],
+            messages=[{"role": "user", "content": SIMILARWEB_PROMPT + "\n\nContent:\n" + content[:6000]}],
         )
         data = parse_json(response.content[0].text)
         data["available"] = True

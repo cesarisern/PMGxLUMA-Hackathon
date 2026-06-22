@@ -15,34 +15,27 @@ that lists locations, clubs, chapters, stores, or local branches — anywhere a 
 find or join a local presence of this brand.
 
 Output a single JSON object:
-{{
+{
   "locations_url": "<full URL or null if not found>",
   "locations_url_label": "<link text or page description, or null>"
-}}
-
-Brand: {brand_name}
-Website content:
-{content}"""
+}"""
 
 EXTRACT_LOCATIONS_PROMPT = """Extract up to 20 of the most prominent locations from this website content.
 Locations can be states, cities, regions, clubs, or chapters.
 
 Output a single JSON object:
-{{
+{
   "locations": [
-    {{
+    {
       "name": "<location name>",
       "type": "<state | city | region | club | chapter>",
       "cta_suffix": "<short phrase for CTA, e.g. 'in California' or 'in Chicago'>",
       "url": "<direct URL for this location if available, else null>"
-    }}
+    }
   ],
   "total": <integer — total found on page, even if list is capped at 20>,
   "coverage": "<brief description, e.g. 'all 50 US states' or 'major US cities'>"
-}}
-
-Website content:
-{content}"""
+}"""
 
 
 def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
@@ -56,9 +49,10 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
         system=SYSTEM,
         messages=[{
             "role": "user",
-            "content": FIND_LOCATIONS_PAGE_PROMPT.format(
-                brand_name=brand_name,
-                content=main_content[:6000],
+            "content": (
+                FIND_LOCATIONS_PAGE_PROMPT
+                + f"\n\nBrand: {brand_name}\nWebsite content:\n"
+                + main_content[:6000]
             ),
         }],
     )
@@ -80,7 +74,7 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
         system=SYSTEM,
         messages=[{
             "role": "user",
-            "content": EXTRACT_LOCATIONS_PROMPT.format(content=content[:8000]),
+            "content": EXTRACT_LOCATIONS_PROMPT + "\n\nWebsite content:\n" + content[:8000],
         }],
     )
     result = parse_json(extract_response.content[0].text)
