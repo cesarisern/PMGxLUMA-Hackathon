@@ -46,8 +46,9 @@ def init() -> None:
         CREATE TABLE IF NOT EXISTS trend_signal (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             run_id          INTEGER REFERENCES runs(id),
+            source          TEXT,
             peak_keyword    TEXT,
-            trending_angle  TEXT,
+            traffic_signal  TEXT,
             data            TEXT NOT NULL,
             created_at      TEXT NOT NULL
         );
@@ -92,8 +93,8 @@ def save_context(run_id: int, data: dict) -> None:
 def save_trends(run_id: int, data: dict) -> None:
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO trend_signal (run_id, peak_keyword, trending_angle, data, created_at) VALUES (?, ?, ?, ?, ?)",
-            (run_id, data.get("peak_keyword"), data.get("trending_angle"), json.dumps(data), _now()),
+            "INSERT INTO trend_signal (run_id, source, peak_keyword, traffic_signal, data, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (run_id, data.get("source"), data.get("peak_keyword"), data.get("traffic_signal"), json.dumps(data), _now()),
         )
 
 

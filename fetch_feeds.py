@@ -141,7 +141,7 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
     # Feed 3 — trend_signal (keywords derived from brand + campaign)
     keywords = derive_keywords(client, results["brand"], campaign)
     try:
-        results["trends"] = trends.fetch(keywords=keywords)
+        results["trends"] = trends.fetch(client=client, brand_url=brand_url, keywords=keywords)
         save("trends", results["trends"])
         db.save_trends(run_id, results["trends"])
     except Exception as e:
