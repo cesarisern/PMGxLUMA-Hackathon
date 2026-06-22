@@ -95,17 +95,25 @@ def run(run_id: int = None, limit: int = None, ad_length: int = 15) -> list:
 
     def make_brief(loc: dict) -> dict:
         return {
+            "audioformVersion": "2",
+            "engine":           "agentic",
             "brief": {
                 "script": {
                     "productName":        brand["brand_name"],
                     "productDescription": description,
+                    "lang":               "en",
                     "adLength":           ad_length,
                     "callToAction":       f"{brand.get('cta', '')} — {loc['cta_suffix']}",
                     "targetAudience":     brand.get("target_audience", ""),
                     "toneOfScript":       tone,
                 },
-                "voices": [{"voicePreset": "expressive"}],
-                "sounds": {"soundDesign": [{"useSmartFit": True}]},
+                "voices": [{"accent": ["american"], "voicePreset": "expressive"}],
+                "sounds": {"soundDesign": {"useSmartFit": True}},
+                "delivery": {
+                    "loudnessPreset": "streaming",
+                    "encoderPreset":  "wav",
+                    "public":         True,
+                },
             },
             "numAds": 1,
         }
