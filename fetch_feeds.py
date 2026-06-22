@@ -102,6 +102,7 @@ def derive_keywords(client, brand_corpus: dict, campaign: str) -> list[str]:
 
 
 def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
+    import db
     from anthropic import Anthropic
     from feeds import brand, context, trends, locations
 
@@ -109,6 +110,7 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
     if not api_key:
         sys.exit("Error: ANTHROPIC_API_KEY not set. Copy .env.example → .env and add your key.")
 
+    db.init()
     client = Anthropic(api_key=api_key)
 
     if cached:
@@ -123,24 +125,31 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
     brand_url, campaign = collect_inputs(args)
     results = {}
 
+    run_id = db.create_run(brand_url, campaign)
+    print(f"[db] Run #{run_id} created")
+
     # Feed 1 — brand_corpus
     results["brand"] = brand.fetch(client, url=brand_url)
     save("brand", results["brand"])
+    db.save_brand(run_id, results["brand"])
 
     # Feed 2 — campaign_context
     results["context"] = context.fetch(client, query=campaign)
     save("context", results["context"])
+    db.save_context(run_id, results["context"])
 
     # Feed 3 — trend_signal (keywords derived from brand + campaign)
     keywords = derive_keywords(client, results["brand"], campaign)
     try:
         results["trends"] = trends.fetch(keywords=keywords)
         save("trends", results["trends"])
+        db.save_trends(run_id, results["trends"])
     except Exception as e:
         print(f"[trends] Warning: live fetch failed ({e})")
         if cached_data := load_cached("trends"):
             print("[trends] Falling back to cached data")
             results["trends"] = cached_data
+            db.save_trends(run_id, results["trends"])
         else:
             sys.exit("[trends] No cached fallback. Run once without --cached to populate data/.")
 
@@ -151,6 +160,7 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
         brand_name=results["brand"].get("brand_name", ""),
     )
     save("locations", results["locations"])
+    db.save_locations(run_id, results["locations"])
 
     print("\nAll feeds ready:")
     print(f"  brand_corpus     → {FILES['brand']}")
