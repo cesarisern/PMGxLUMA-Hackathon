@@ -2,10 +2,8 @@
 
 from datetime import datetime, timezone
 
-KEYWORDS = ["girls soccer", "youth soccer sign up", "World Cup 2026", "soccer near me"]
 
-
-def fetch(keywords: list = KEYWORDS, geo: str = "US") -> dict:
+def fetch(keywords: list, geo: str = "US") -> dict:
     from pytrends.request import TrendReq
 
     print(f"[trends] Fetching Google Trends for: {keywords}...")

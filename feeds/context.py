@@ -5,8 +5,6 @@ from datetime import datetime, timezone
 import httpx
 from anthropic import Anthropic
 
-CAMPAIGN_QUERY = "World Cup 2026 inspiring girls youth soccer sign up"
-
 SYSTEM = "Synthesize search results into a campaign context object. Output only valid JSON. No commentary."
 
 PROMPT = """Synthesize these search results into a campaign context object.
@@ -23,7 +21,7 @@ Search results:
 {results}"""
 
 
-def fetch(client: Anthropic, query: str = CAMPAIGN_QUERY) -> dict:
+def fetch(client: Anthropic, query: str) -> dict:
     print(f"[context] Searching Jina: '{query}'...")
     results = httpx.get(
         f"https://s.jina.ai/{query}",

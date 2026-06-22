@@ -4,8 +4,6 @@ import json
 import httpx
 from anthropic import Anthropic
 
-BRAND_URL = "https://www.usyouthsoccer.org/"
-
 SYSTEM = "Extract brand information from website content. Output only valid JSON. No commentary."
 
 PROMPT = """Extract a brand corpus from this website content.
@@ -26,7 +24,7 @@ Website content:
 {content}"""
 
 
-def fetch(client: Anthropic, url: str = BRAND_URL) -> dict:
+def fetch(client: Anthropic, url: str) -> dict:
     print(f"[brand] Fetching {url} via Jina Reader...")
     raw = httpx.get(f"https://r.jina.ai/{url}", timeout=30).text
 
