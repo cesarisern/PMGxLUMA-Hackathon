@@ -1,9 +1,9 @@
 """Feed 2 — campaign_context via Jina Search + Anthropic synthesis."""
 
-import json
 from datetime import datetime, timezone
 import httpx
 from anthropic import Anthropic
+from feeds import parse_json
 
 SYSTEM = "Synthesize search results into a campaign context object. Output only valid JSON. No commentary."
 
@@ -22,12 +22,20 @@ Search results:
 
 
 def fetch(client: Anthropic, query: str) -> dict:
-    print(f"[context] Searching Jina: '{query}'...")
-    results = httpx.get(
-        f"https://s.jina.ai/{query}",
-        headers={"Accept": "text/plain"},
-        timeout=30,
-    ).text
+    import os
+    jina_key = os.getenv("JINA_API_KEY")
+
+    if jina_key:
+        print(f"[context] Searching Jina: '{query}'...")
+        results = httpx.get(
+            f"https://s.jina.ai/{query}",
+            headers={"Accept": "text/plain", "Authorization": f"Bearer {jina_key}"},
+            timeout=30,
+        ).text
+    else:
+        print(f"[context] No JINA_API_KEY — searching via DuckDuckGo: '{query}'...")
+        ddg_url = f"https://lite.duckduckgo.com/lite/?q={query.replace(' ', '+')}"
+        results = httpx.get(f"https://r.jina.ai/{ddg_url}", timeout=30).text
 
     print("[context] Synthesizing campaign context via Anthropic...")
     response = client.messages.create(
@@ -36,7 +44,7 @@ def fetch(client: Anthropic, query: str) -> dict:
         system=SYSTEM,
         messages=[{"role": "user", "content": PROMPT.format(results=results[:6000])}],
     )
-    context = json.loads(response.content[0].text)
+    context = parse_json(response.content[0].text)
     context["query"] = query
     context["fetched_at"] = datetime.now(timezone.utc).isoformat()
     print(f"[context] Done — live moment: {context.get('live_moment', '')[:80]}...")

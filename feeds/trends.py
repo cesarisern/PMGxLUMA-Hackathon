@@ -3,15 +3,28 @@
 from datetime import datetime, timezone
 
 
-def fetch(keywords: list, geo: str = "US") -> dict:
+def fetch(keywords: list, geo: str = "US", retries: int = 3) -> dict:
+    import time
     from pytrends.request import TrendReq
 
     print(f"[trends] Fetching Google Trends for: {keywords}...")
-    pytrends = TrendReq(hl="en-US", tz=0)
-    pytrends.build_payload(kw_list=keywords, timeframe="now 7-d", geo=geo)
 
-    interest_df = pytrends.interest_over_time()
-    related = pytrends.related_queries()
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            pytrends = TrendReq(hl="en-US", tz=0)
+            pytrends.build_payload(kw_list=keywords, timeframe="now 7-d", geo=geo)
+            interest_df = pytrends.interest_over_time()
+            related = pytrends.related_queries()
+            break
+        except Exception as e:
+            last_error = e
+            if attempt < retries:
+                wait = attempt * 5
+                print(f"[trends] Attempt {attempt} failed ({e}) — retrying in {wait}s...")
+                time.sleep(wait)
+    else:
+        raise last_error
 
     if interest_df.empty:
         raise ValueError("pytrends returned empty dataframe — Google may be blocking requests")

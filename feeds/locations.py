@@ -4,9 +4,9 @@ Scrapes the brand website for club/chapter/store/location data so the CTA
 can be localized: "Find a club in [city/state]" instead of generic "near you".
 """
 
-import json
 import httpx
 from anthropic import Anthropic
+from feeds import parse_json
 
 SYSTEM = "Extract location data from website content. Output only valid JSON. No commentary."
 
@@ -24,7 +24,7 @@ Brand: {brand_name}
 Website content:
 {content}"""
 
-EXTRACT_LOCATIONS_PROMPT = """Extract all locations from this website content.
+EXTRACT_LOCATIONS_PROMPT = """Extract up to 20 of the most prominent locations from this website content.
 Locations can be states, cities, regions, clubs, or chapters.
 
 Output a single JSON object:
@@ -37,8 +37,8 @@ Output a single JSON object:
       "url": "<direct URL for this location if available, else null>"
     }}
   ],
-  "total": <integer>,
-  "coverage": "<brief description of what's covered, e.g. 'all 50 US states'>"
+  "total": <integer — total found on page, even if list is capped at 20>,
+  "coverage": "<brief description, e.g. 'all 50 US states' or 'major US cities'>"
 }}
 
 Website content:
@@ -62,7 +62,7 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
             ),
         }],
     )
-    pointer = json.loads(find_response.content[0].text)
+    pointer = parse_json(find_response.content[0].text)
     locations_url = pointer.get("locations_url")
 
     # Step 2 — scrape the locations page if found, else use main page
@@ -76,14 +76,14 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
     # Step 3 — extract structured locations
     extract_response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2048,
+        max_tokens=4096,
         system=SYSTEM,
         messages=[{
             "role": "user",
             "content": EXTRACT_LOCATIONS_PROMPT.format(content=content[:8000]),
         }],
     )
-    result = json.loads(extract_response.content[0].text)
+    result = parse_json(extract_response.content[0].text)
     result["source_url"] = locations_url or brand_url
 
     total = result.get("total", len(result.get("locations", [])))

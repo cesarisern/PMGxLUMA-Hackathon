@@ -1,8 +1,8 @@
 """Feed 1 — brand_corpus via Jina Reader + Anthropic extraction."""
 
-import json
 import httpx
 from anthropic import Anthropic
+from feeds import parse_json
 
 SYSTEM = "Extract brand information from website content. Output only valid JSON. No commentary."
 
@@ -35,7 +35,7 @@ def fetch(client: Anthropic, url: str) -> dict:
         system=SYSTEM,
         messages=[{"role": "user", "content": PROMPT.format(content=raw[:8000])}],
     )
-    corpus = json.loads(response.content[0].text)
+    corpus = parse_json(response.content[0].text)
     corpus["brand_url"] = url
     print(f"[brand] Done — {corpus.get('brand_name')}")
     return corpus

@@ -95,7 +95,8 @@ def derive_keywords(client, brand_corpus: dict, campaign: str) -> list[str]:
             ),
         }],
     )
-    keywords = json.loads(response.content[0].text)
+    from feeds import parse_json
+    keywords = parse_json(response.content[0].text)
     print(f"[trends] Keywords: {keywords}")
     return keywords
 
