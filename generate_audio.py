@@ -8,7 +8,6 @@ Usage:
     python generate_audio.py                  # latest DB run, all locations
     python generate_audio.py --limit 3        # first N (demo mode)
     python generate_audio.py --run-id 1       # specific run
-    python generate_audio.py --ad-length 15   # 10 | 15 | 20 | 30 | 40
 """
 
 import argparse
@@ -60,7 +59,7 @@ def _submit_brief(location: str, brief_body: dict, headers: dict) -> tuple:
     return location, af_id
 
 
-def run(run_id: int = None, limit: int = None, ad_length: int = 15) -> list:
+def run(run_id: int = None, limit: int = None) -> list:
     db.init()
     headers = _headers()
     conn = db.get_conn()
@@ -102,7 +101,6 @@ def run(run_id: int = None, limit: int = None, ad_length: int = 15) -> list:
                     "productName":        brand["brand_name"],
                     "productDescription": description,
                     "lang":               "en",
-                    "adLength":           ad_length,
                     "callToAction":       f"{brand.get('cta', '')} — {loc['cta_suffix']}",
                     "targetAudience":     brand.get("target_audience", ""),
                     "toneOfScript":       tone,
@@ -169,6 +167,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id",    type=int, help="DB run ID (default: latest)")
     parser.add_argument("--limit",     type=int, help="Max locations (demo mode)")
-    parser.add_argument("--ad-length", type=int, default=15, choices=[10, 15, 20, 30, 40])
     args = parser.parse_args()
-    run(run_id=args.run_id, limit=args.limit, ad_length=args.ad_length)
+    run(run_id=args.run_id, limit=args.limit)
