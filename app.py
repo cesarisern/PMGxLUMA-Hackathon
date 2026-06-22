@@ -15,7 +15,7 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # .env wins over any stale key exported in the shell
 
 # ── Page config ───────────────────────────────────────────────────────────────
 

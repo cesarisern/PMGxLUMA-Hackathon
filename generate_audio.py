@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 
 import db
 
-load_dotenv()
+load_dotenv(override=True)  # .env wins over any stale key exported in the shell
 
 BASE = "https://v2.api.audio"
 
