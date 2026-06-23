@@ -70,19 +70,58 @@ def _scrape_url(url: str) -> tuple[str, str]:
 
 def _search_name(name: str) -> tuple[str, str]:
     """Web-search a brand name. Returns (content, resolved_url='')."""
+    def _get_text_with_retry(
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        retries: int = 3,
+        timeout: int = 30,
+    ) -> str:
+        last_error: Exception | None = None
+        for attempt in range(retries):
+            try:
+                response = httpx.get(url, headers=headers, timeout=timeout)
+                if response.status_code == 200:
+                    return response.text
+
+                if response.status_code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                    sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                    print(
+                        f"[brand] Search source returned {response.status_code}; retrying in {sleep_seconds:.2f}s "
+                        f"(attempt {attempt + 2}/{retries})"
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt < retries - 1:
+                    sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                    print(
+                        f"[brand] Search source request failed ({exc}); retrying in {sleep_seconds:.2f}s "
+                        f"(attempt {attempt + 2}/{retries})"
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+                raise
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("Search source request failed without explicit error")
+
     query = f"{name} brand official website mission values"
     jina_key = os.getenv("JINA_API_KEY")
     if jina_key:
         print(f"[brand] Searching Jina for brand '{name}'...")
-        content = httpx.get(
+        content = _get_text_with_retry(
             f"https://s.jina.ai/{query}",
             headers={"Accept": "text/plain", "Authorization": f"Bearer {jina_key}"},
-            timeout=30,
-        ).text
+        )
     else:
         print(f"[brand] No JINA_API_KEY — searching DuckDuckGo for brand '{name}'...")
         ddg = f"https://lite.duckduckgo.com/lite/?q={query.replace(' ', '+')}"
-        content = httpx.get(f"https://r.jina.ai/{ddg}", timeout=30).text
+        content = _get_text_with_retry(f"https://r.jina.ai/{ddg}")
     return content[:8000], ""
 
 
