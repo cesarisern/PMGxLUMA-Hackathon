@@ -73,8 +73,11 @@ def _pipeline_worker(job_id: str, brand_url: str, campaign: str) -> None:
         def _image() -> None:
             try:
                 emit("image_start", "Generating cover image via Luma…")
+                cmd = [sys.executable, str(REPO_ROOT / "generate_image.py")]
+                if campaign:
+                    cmd.append(campaign)
                 proc = subprocess.run(
-                    [sys.executable, str(REPO_ROOT / "generate_image.py")],
+                    cmd,
                     capture_output=True,
                     text=True,
                     cwd=str(REPO_ROOT),
