@@ -3,6 +3,7 @@
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+import random
 from urllib.parse import urlparse
 
 import httpx
@@ -23,6 +24,41 @@ Output a single JSON object with exactly these fields:
 - signal: one sentence summarising the traffic trend (string)"""
 
 
+def _get_jina_text(target_url: str, retries: int = 3, timeout: int = 30) -> str:
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            response = httpx.get(f"https://r.jina.ai/{target_url}", timeout=timeout)
+            if response.status_code == 200:
+                return response.text
+
+            if response.status_code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                print(
+                    f"[trends] Jina returned {response.status_code}; retrying in {sleep_seconds:.2f}s "
+                    f"(attempt {attempt + 2}/{retries})"
+                )
+                time.sleep(sleep_seconds)
+                continue
+
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            last_error = exc
+            if attempt < retries - 1:
+                sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                print(
+                    f"[trends] Jina request failed ({exc}); retrying in {sleep_seconds:.2f}s "
+                    f"(attempt {attempt + 2}/{retries})"
+                )
+                time.sleep(sleep_seconds)
+                continue
+            raise
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Jina request failed without an explicit error")
+
+
 def _extract_domain(url: str) -> str:
     parsed = urlparse(url)
     domain = parsed.netloc or parsed.path
@@ -33,7 +69,7 @@ def _fetch_website_traffic(client: Anthropic, domain: str) -> dict:
     sw_url = f"https://www.similarweb.com/website/{domain}/"
     print(f"[trends] Fetching website traffic for {domain}...")
     try:
-        content = httpx.get(f"https://r.jina.ai/{sw_url}", timeout=30).text
+        content = _get_jina_text(sw_url)
         if "monthly visits" not in content.lower() and "total visits" not in content.lower():
             return {"available": False, "reason": "no traffic data in SimilarWeb response"}
         response = client.messages.create(
