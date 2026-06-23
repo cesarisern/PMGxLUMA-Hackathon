@@ -2,3 +2,4 @@ httpx
 anthropic
 pytrends
 python-dotenv
+luma_agents
