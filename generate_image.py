@@ -31,11 +31,11 @@ def build_prompt(context: str | dict) -> str:
 
     return (
         f"A premium lifestyle photograph depicting a relevant scene for this ad campaign: {scene}. "
-        "Square composition, subject fills the upper two-thirds of the frame, "
-        "open negative space in the lower third. "
+        "Square composition, subject fills the upper three-quarters of the frame, "
+        "open negative space in the lower quarter. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
-        "Cinematic colour grade, rich and saturated, slightly warm tone. "
-        "Natural directional sunlight, golden hour. "
+        "Cinematic colour grade, rich and saturated tone. "
+        "Natural directional sunlight, late afternoon. "
         "High contrast, photorealistic, premium lifestyle aesthetic. "
         "No visible brand logos, text, or markings on clothing or equipment. "
         "No photography equipment in the scene."
@@ -52,8 +52,11 @@ elif DATA_FILE.exists():
 else:
     sys.exit(f"Error: no context provided. Pass a description as an argument or run fetch_feeds.py first to generate {DATA_FILE}.")
 
+prompt_text = build_prompt(context_value)
+print(f"[image] Prompt: {prompt_text}")
+
 generation = client.generations.create(
-    prompt=build_prompt(context_value),
+    prompt=prompt_text,
     aspect_ratio="1:1",
 )
 

@@ -84,6 +84,8 @@ def _pipeline_worker(job_id: str, brand_url: str, campaign: str) -> None:
                 )
                 lines = [line.strip() for line in proc.stdout.split("\n") if line.strip()]
                 url = lines[-1] if lines else ""
+                for line in lines[:-1]:
+                    emit("image_log", line)
                 if proc.returncode == 0 and url.startswith("http"):
                     image_url[0] = url
                     emit("image_done", "Cover image ready", {"url": url})
