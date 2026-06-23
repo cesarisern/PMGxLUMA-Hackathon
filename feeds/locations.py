@@ -4,6 +4,9 @@ Scrapes the brand website for club/chapter/store/location data so the CTA
 can be localized: "Find a club in [city/state]" instead of generic "near you".
 """
 
+import random
+import time
+
 import httpx
 from anthropic import Anthropic
 from feeds import parse_json
@@ -38,9 +41,44 @@ Output a single JSON object:
 }"""
 
 
+def _get_jina_text(target_url: str, retries: int = 3, timeout: int = 30) -> str:
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            response = httpx.get(f"https://r.jina.ai/{target_url}", timeout=timeout)
+            if response.status_code == 200:
+                return response.text
+
+            if response.status_code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                print(
+                    f"[locations] Jina returned {response.status_code}; retrying in {sleep_seconds:.2f}s "
+                    f"(attempt {attempt + 2}/{retries})"
+                )
+                time.sleep(sleep_seconds)
+                continue
+
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            last_error = exc
+            if attempt < retries - 1:
+                sleep_seconds = (0.6 * (2**attempt)) + random.uniform(0.0, 0.25)
+                print(
+                    f"[locations] Jina request failed ({exc}); retrying in {sleep_seconds:.2f}s "
+                    f"(attempt {attempt + 2}/{retries})"
+                )
+                time.sleep(sleep_seconds)
+                continue
+            raise
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Jina request failed without an explicit error")
+
+
 def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
     print(f"[locations] Scraping {brand_url} for location data...")
-    main_content = httpx.get(f"https://r.jina.ai/{brand_url}", timeout=30).text
+    main_content = _get_jina_text(brand_url)
 
     # Step 1 — find the dedicated locations/clubs page if one exists
     find_response = client.messages.create(
@@ -62,7 +100,7 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
     # Step 2 — scrape the locations page if found, else use main page
     if locations_url:
         print(f"[locations] Found locations page: {locations_url}")
-        content = httpx.get(f"https://r.jina.ai/{locations_url}", timeout=30).text
+        content = _get_jina_text(locations_url)
     else:
         print("[locations] No dedicated locations page found — extracting from main site")
         content = main_content
