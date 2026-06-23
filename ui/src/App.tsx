@@ -272,9 +272,17 @@ function App() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl bg-slate-50 px-6 py-8 text-slate-900">
-      <h1 className="text-2xl font-semibold">Dynamic Voice Local Wizard</h1>
-      <p className="mt-2 text-sm text-slate-600">Input - Feeds - Brief - Results</p>
+    <main className="mx-auto min-h-screen max-w-6xl px-6 py-10">
+      <section className="pmg-panel p-6 md:p-8">
+        <p className="pmg-kicker">Engineered for impact</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--pmg-text)] md:text-4xl">
+          Dynamic Voice Local Wizard
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm text-[var(--pmg-muted)] md:text-base">
+          Build localized voice creative through a guided flow: collect feed intelligence, review brief data, and
+          generate location-specific audio results.
+        </p>
+      </section>
 
       <div className="mt-6 flex flex-wrap gap-2">
         {STEPS.map((label, index) => {
@@ -283,13 +291,7 @@ function App() {
           return (
             <div
               key={label}
-              className={`rounded-md border px-3 py-2 text-sm ${
-                current
-                  ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                  : complete
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                    : 'border-slate-300 bg-white text-slate-500'
-              }`}
+              className={`pmg-step ${current ? 'pmg-step-current' : complete ? 'pmg-step-complete' : 'pmg-step-idle'}`}
             >
               {index + 1}. {label}
             </div>
@@ -298,42 +300,42 @@ function App() {
       </div>
 
       {step === 1 && (
-        <section className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-medium">Step 1 - Campaign input</h2>
+        <section className="pmg-panel mt-8 p-6">
+          <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 1 - Campaign input</h2>
           <form className="mt-4 space-y-4" onSubmit={onSubmitRun}>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Brand (URL or name)</span>
+              <span className="mb-1 block text-sm font-medium text-[var(--pmg-muted)]">Brand (URL or name)</span>
               <input
                 value={brand}
                 onChange={(event) => {
                   setBrand(event.target.value)
                   if (runError) setRunError(null)
                 }}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="pmg-input px-3 py-2"
                 placeholder="https://www.usyouthsoccer.org/"
                 autoComplete="url"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Campaign</span>
+              <span className="mb-1 block text-sm font-medium text-[var(--pmg-muted)]">Campaign</span>
               <textarea
                 value={campaign}
                 onChange={(event) => {
                   setCampaign(event.target.value)
                   if (runError) setRunError(null)
                 }}
-                className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="pmg-input min-h-28 px-3 py-2"
                 placeholder="Spring youth soccer registration..."
               />
             </label>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[var(--pmg-muted)]">
               Be specific - avoid generic phrases like &quot;Enroll now!&quot;
             </p>
-            {runError ? <p className="text-sm text-rose-600">{runError}</p> : null}
+            {runError ? <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{runError}</p> : null}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-white disabled:opacity-50"
+              className="pmg-button-primary px-4 py-2 text-sm font-medium"
             >
               {isSubmitting ? 'Starting...' : 'Run feeds'}
             </button>
@@ -343,34 +345,30 @@ function App() {
 
       {step === 2 && (
         <section className="mt-8 space-y-4">
-          <h2 className="text-lg font-medium">Step 2 - Feed results</h2>
-          <p className="text-sm text-slate-600">Polling run #{runId} every 2 seconds.</p>
-          <div className="rounded-lg border bg-white p-4 text-sm">
-            <p className="font-medium">
+          <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 2 - Feed results</h2>
+          <p className="text-sm text-[var(--pmg-muted)]">Polling run #{runId} every 2 seconds.</p>
+          <div className="pmg-panel-muted p-4 text-sm">
+            <p className="font-medium text-[var(--pmg-text)]">
               {isFeedsReady ? 'All feeds ready.' : `Feeds running: ${readyFeedCount}/${feedProgress.length} ready`}
             </p>
-            <p className="mt-1 text-slate-600">Locations found: {runData?.feeds.locations?.count ?? 0}</p>
+            <p className="mt-1 text-[var(--pmg-muted)]">Locations found: {runData?.feeds.locations?.count ?? 0}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {feedProgress.map((feed, index) => (
                 <span
                   key={feed.label}
-                  className={`rounded border px-2 py-1 ${
-                    feed.ready
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-slate-50 text-slate-500'
-                  }`}
+                  className={`pmg-status-chip ${feed.ready ? 'pmg-status-complete' : 'pmg-status-running'}`}
                 >
                   {index + 1}. {feed.label}: {feed.ready ? 'ready' : 'running'}
                 </span>
               ))}
             </div>
             {!isFeedsReady ? (
-              <p className="mt-2 text-slate-500">
+              <p className="mt-2 text-[var(--pmg-muted)]">
                 Waiting for all feeds to finish before showing full feed details.
               </p>
             ) : null}
           </div>
-          {runError ? <p className="text-sm text-rose-600">{runError}</p> : null}
+          {runError ? <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{runError}</p> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <FeedCard
               title={`1. ${FEED_ORDER[0]}`}
@@ -404,7 +402,7 @@ function App() {
             type="button"
             disabled={!canContinueToStep3}
             onClick={goToStep3}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="pmg-button-primary px-4 py-2 text-sm font-medium"
           >
             {isFeedsReady ? 'Continue' : 'Continue (waiting for feeds...)'}
           </button>
@@ -413,40 +411,41 @@ function App() {
 
       {step === 3 && (
         <section className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-lg border bg-white p-4">
-            <h2 className="text-lg font-medium">Step 3 - Select locations</h2>
-            <p className="mt-1 text-sm text-slate-600">Choose one or more locations to generate.</p>
+          <div className="pmg-panel p-4">
+            <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 3 - Select locations</h2>
+            <p className="mt-1 text-sm text-[var(--pmg-muted)]">Choose one or more locations to generate.</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                className="rounded border px-2 py-1 text-xs"
+                className="pmg-button-secondary px-2 py-1 text-xs"
                 onClick={() => setSelectedLocations(locationOptions.map((loc) => loc.name))}
               >
                 Select all
               </button>
               <button
                 type="button"
-                className="rounded border px-2 py-1 text-xs"
+                className="pmg-button-secondary px-2 py-1 text-xs"
                 onClick={() => setSelectedLocations([])}
               >
                 Clear
               </button>
             </div>
-            <div className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded border p-2">
+            <div className="pmg-panel-muted mt-3 max-h-80 space-y-2 overflow-y-auto p-2">
               {locationOptions.map((loc) => (
-                <label key={loc.name} className="flex items-center gap-2 text-sm">
+                <label key={loc.name} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-white/5">
                   <input
                     type="checkbox"
                     checked={selectedLocations.includes(loc.name)}
                     onChange={() => toggleLocation(loc.name)}
+                    className="accent-[var(--pmg-accent)]"
                   />
                   <span>{loc.name}</span>
-                  <span className="text-slate-400">({loc.cta_suffix})</span>
+                  <span className="text-[var(--pmg-muted)]">({loc.cta_suffix})</span>
                 </label>
               ))}
             </div>
             {selectedLocations.length === 0 && (
-              <p className="mt-2 text-sm text-amber-700">Select at least one location.</p>
+              <p className="pmg-alert-warning mt-2 rounded-xl px-3 py-2 text-sm">Select at least one location.</p>
             )}
             <button
               type="button"
@@ -454,16 +453,16 @@ function App() {
               onClick={() => {
                 void startGeneration()
               }}
-              className="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-white disabled:opacity-50"
+              className="pmg-button-primary mt-4 px-4 py-2 text-sm font-medium"
             >
               Generate ads
             </button>
           </div>
-          <div className="rounded-lg border bg-white p-4">
-            <h3 className="text-base font-medium">Brief preview (read-only)</h3>
-            {briefError ? <p className="mt-2 text-sm text-rose-600">{briefError}</p> : null}
+          <div className="pmg-panel p-4">
+            <h3 className="text-base font-medium text-[var(--pmg-text)]">Brief preview (read-only)</h3>
+            {briefError ? <p className="pmg-alert-error mt-2 rounded-xl px-3 py-2 text-sm">{briefError}</p> : null}
             {!briefPreview ? (
-              <p className="mt-2 text-sm text-slate-500">Select locations to load preview.</p>
+              <p className="mt-2 text-sm text-[var(--pmg-muted)]">Select locations to load preview.</p>
             ) : (
               <div className="mt-3 space-y-4">
                 <div className="grid gap-2 text-sm md:grid-cols-2">
@@ -473,7 +472,7 @@ function App() {
                 </div>
                 <Field label="productDescription" value={briefPreview.shared.productDescription} />
                 {briefPreview.locations.map((loc) => (
-                  <details key={loc.location} className="rounded border p-3">
+                  <details key={loc.location} className="pmg-panel-muted p-3">
                     <summary className="cursor-pointer text-sm font-medium">
                       {loc.location} - {loc.summary}
                     </summary>
@@ -487,21 +486,21 @@ function App() {
 
       {step === 4 && (
         <section className="mt-8 space-y-4">
-          <h2 className="text-lg font-medium">Step 4 - Generation results</h2>
-          <p className="text-sm text-slate-600">Status: {audioState?.status ?? 'loading'}</p>
-          {audioError ? <p className="text-sm text-rose-600">{audioError}</p> : null}
+          <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 4 - Generation results</h2>
+          <p className="text-sm text-[var(--pmg-muted)]">Status: {audioState?.status ?? 'loading'}</p>
+          {audioError ? <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{audioError}</p> : null}
           <div className="space-y-4">
             {(audioState?.results ?? []).map((result) => (
-              <article key={result.location} className="rounded-lg border bg-white p-4">
+              <article key={result.location} className="pmg-panel p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-medium">{result.location}</h3>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs uppercase">
+                  <span className={`pmg-status-chip ${statusChipClass(result.status)}`}>
                     {result.status}
                   </span>
                 </div>
-                {result.error ? <p className="mt-2 text-sm text-rose-600">{result.error}</p> : null}
+                {result.error ? <p className="pmg-alert-error mt-2 rounded-xl px-3 py-2 text-sm">{result.error}</p> : null}
                 {result.pollResponse?.scriptText ? (
-                  <p className="mt-3 rounded bg-slate-100 p-2 text-sm">{result.pollResponse.scriptText}</p>
+                  <p className="pmg-panel-muted mt-3 p-3 text-sm">{result.pollResponse.scriptText}</p>
                 ) : null}
                 {result.audioUrl ? <audio controls src={result.audioUrl} className="mt-3 w-full" /> : null}
                 {getAssetUris(result.pollResponse?.raw).map((uri) => (
@@ -512,7 +511,7 @@ function App() {
           </div>
           <button
             type="button"
-            className="rounded-md border border-slate-300 px-4 py-2 text-slate-700"
+            className="pmg-button-secondary px-4 py-2 text-sm"
             onClick={resetWizard}
           >
             Start over
@@ -542,21 +541,23 @@ function FeedCard({
 }) {
   const data = feed?.data as Record<string, unknown> | undefined
   return (
-    <article className="rounded-lg border bg-white p-4 shadow-sm">
+    <article className="pmg-panel p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-medium">{title}</h3>
-        <span className="rounded bg-slate-100 px-2 py-1 text-xs">{feed?.status ?? 'pending'}</span>
+        <span className={`pmg-status-chip ${statusChipClass(feed?.status)}`}>{feed?.status ?? 'pending'}</span>
       </div>
       {typeof locationCount === 'number' ? (
-        <p className="mt-2 text-sm text-slate-600">Location count: {locationCount}</p>
+        <p className="mt-2 text-sm text-[var(--pmg-muted)]">Location count: {locationCount}</p>
       ) : null}
       {warning ? (
-        <p className="mt-2 rounded bg-amber-100 px-2 py-1 text-xs text-amber-800">
+        <p className="pmg-alert-warning mt-2 rounded-xl px-3 py-2 text-xs">
           Warning: feed mentions API key or unavailable text.
         </p>
       ) : null}
       {!revealData ? (
-        <p className="mt-3 text-sm text-slate-500">Feed is running. Live output will appear once all feeds are ready.</p>
+        <p className="mt-3 text-sm text-[var(--pmg-muted)]">
+          Feed is running. Live output will appear once all feeds are ready.
+        </p>
       ) : (
         <>
           <div className="mt-3 space-y-1 text-sm">
@@ -570,7 +571,7 @@ function FeedCard({
           {locationNames.length > 0 ? (
             <div className="mt-3">
               <p className="text-sm font-medium">Top 20 locations</p>
-              <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-[var(--pmg-muted)]">
                 {locationNames.map((name, index) => (
                   <li key={`${name}-${index}`}>{name}</li>
                 ))}
@@ -585,8 +586,8 @@ function FeedCard({
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <p className="text-sm">
-      <span className="font-medium">{label}: </span>
+    <p className="text-sm text-[var(--pmg-muted)]">
+      <span className="font-medium text-[var(--pmg-text)]">{label}: </span>
       <span>{value || '-'}</span>
     </p>
   )
@@ -616,7 +617,7 @@ function renderDisplayValue(value: unknown, depth = 0): ReactNode {
       return (
         <span className="inline-flex flex-wrap gap-1 align-middle">
           {value.map((item, index) => (
-            <span key={index} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+            <span key={index} className="pmg-badge">
               {item === null ? 'None' : String(item)}
             </span>
           ))}
@@ -624,9 +625,9 @@ function renderDisplayValue(value: unknown, depth = 0): ReactNode {
       )
     }
     return (
-      <details className="rounded border bg-slate-50 p-2">
-        <summary className="cursor-pointer text-xs text-slate-600">View list ({value.length})</summary>
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">
+      <details className="pmg-panel-muted p-2">
+        <summary className="cursor-pointer text-xs text-[var(--pmg-muted)]">View list ({value.length})</summary>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-[var(--pmg-muted)]">
           {JSON.stringify(value, null, 2)}
         </pre>
       </details>
@@ -638,9 +639,9 @@ function renderDisplayValue(value: unknown, depth = 0): ReactNode {
   if (entries.length === 0) return 'None'
   if (depth >= 2) {
     return (
-      <details className="rounded border bg-slate-50 p-2">
-        <summary className="cursor-pointer text-xs text-slate-600">View details</summary>
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">
+      <details className="pmg-panel-muted p-2">
+        <summary className="cursor-pointer text-xs text-[var(--pmg-muted)]">View details</summary>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-[var(--pmg-muted)]">
           {JSON.stringify(record, null, 2)}
         </pre>
       </details>
@@ -648,15 +649,24 @@ function renderDisplayValue(value: unknown, depth = 0): ReactNode {
   }
 
   return (
-    <div className="mt-1 space-y-1 rounded border border-slate-200 bg-slate-50 p-2">
+    <div className="pmg-panel-muted mt-1 space-y-1 p-2">
       {entries.map(([key, nestedValue]) => (
         <div key={key} className="grid grid-cols-[120px_1fr] gap-2">
-          <span className="text-xs font-medium text-slate-600">{formatFieldLabel(key)}</span>
-          <span className="text-xs text-slate-700">{renderDisplayValue(nestedValue, depth + 1)}</span>
+          <span className="text-xs font-medium text-[var(--pmg-text)]">{formatFieldLabel(key)}</span>
+          <span className="text-xs text-[var(--pmg-muted)]">{renderDisplayValue(nestedValue, depth + 1)}</span>
         </div>
       ))}
     </div>
   )
+}
+
+function statusChipClass(status: string | undefined): string {
+  if (!status) return 'pmg-status-pending'
+  const normalized = status.toLowerCase()
+  if (normalized === 'complete') return 'pmg-status-complete'
+  if (normalized === 'running' || normalized === 'idle' || normalized === 'pending') return `pmg-status-${normalized}`
+  if (normalized === 'failed' || normalized === 'error' || normalized === 'timeout') return `pmg-status-${normalized}`
+  return 'pmg-status-error'
 }
 
 function getAssetUris(raw: unknown): string[] {
