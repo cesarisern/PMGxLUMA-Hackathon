@@ -38,22 +38,21 @@
 
    `python generate_audio.py --limit 3`
 
-  4. Database Inspection (Optional)
-  Since the project uses a database (db.py), you might want to check the
-  stored runs. If there's a CLI interface in db.py, you can use it to
-  verify that data is being stored correctly between steps.
+  4. Image generation
+  
+  `python generate_image.py`
 
-  ---
+    If you've already run context.py and generated an output json for the context, this should pick it up automatically.
 
-  Summary of Scripts
-  ┌───────────────────┬───────────────────────────────────────────────┐
-  │ Script            │ Purpose                                       │
-  ├───────────────────┼───────────────────────────────────────────────┤
-  │ fetch_feeds.py    │ Scrapes/fetches the 4 core data feeds (Brand, │
-  │                   │ Context, Trends, Locations).                  │
-  │ generate_audio.py │ Uses Audiostack to create localized audio     │
-  │                   │ files based on the fetched data.              │
-  │ db.py             │ Handles SQLite storage for runs and generated │
-  │                   │ content.                                      │
-  │ generate_image.py │ For visual asset generation.                  │
-  └───────────────────┴─────────────────────────────────
+    You can also test by entering the context after the script - this will take precedence over the json as an input.
+
+    `python generate_image.py "Nike advert for the world cup - highlight how Nike is supporting women and girls' sport participation with sponsored soccer camps across the US this summer"`
+
+
+    ## For testing only
+    Very simple mock UI to test the queries. To run: 
+
+    `cd PMGxLUMA-Hackathon/test_frontend`
+    `python server.py`
+    # then open 
+    `http://localhost:8765`
