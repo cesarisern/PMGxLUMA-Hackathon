@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Voice — Ad Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #07070f;
+      --surface:      #0d0d1c;
+      --surface-2:    #13132b;
+      --border:       #1c1c32;
+      --border-soft:  #232340;
+      --accent:       #7c3aed;
+      --accent-hover: #6d28d9;
+      --accent-glow:  rgba(124, 58, 237, 0.14);
+      --text:         #e3e3f0;
+      --text-muted:   #65658a;
+      --success:      #10b981;
+      --error:        #f43f5e;
+      --radius:       14px;
+      --radius-sm:    9px;
+      --font:         -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --mono:         "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      padding: 52px 24px 80px;
+      line-height: 1.55;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 44px;
+    }
+
+    .header h1 {
+      font-size: 2.1rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(130deg, #e3e3f0 35%, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 0.93rem;
+    }
+
+    /* ── Card ─────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 28px 24px;
+      margin-bottom: 18px;
+    }
+
+    /* ── Form fields ──────────────────────────────── */
+    .field { margin-bottom: 18px; }
+    .field:last-of-type { margin-bottom: 22px; }
+
+    .field label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .field input,
+    .field textarea {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.93rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      resize: vertical;
+    }
+
+    .field input::placeholder,
+    .field textarea::placeholder { color: var(--text-muted); }
+
+    .field input:focus,
+    .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .field textarea { min-height: 96px; }
+
+    /* ── Primary button ───────────────────────────── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: var(--font);
+      font-size: 0.93rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Utility ──────────────────────────────────── */
+    .hidden { display: none !important; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.35s ease forwards; }
+
+    /* ── Error banner ─────────────────────────────── */
+    .error-banner {
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.28);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      color: var(--error);
+      font-size: 0.87rem;
+      margin-bottom: 16px;
+    }
+
+    /* ── Section label ────────────────────────────── */
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── Pipeline steps ───────────────────────────── */
+    .steps { display: flex; flex-direction: column; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step:first-child { padding-top: 0; }
+    .step:last-child  { border-bottom: none; padding-bottom: 0; }
+
+    .step-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      position: relative;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .step-icon.pending {
+      background: var(--surface-2);
+      border: 2px solid var(--border-soft);
+      color: var(--text-muted);
+    }
+
+    .step-icon.loading {
+      background: var(--accent-glow);
+      border: 2px solid var(--accent);
+      color: transparent;
+    }
+    .step-icon.loading::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--accent);
+      animation: spin 0.75s linear infinite;
+    }
+
+    .step-icon.done {
+      background: rgba(16, 185, 129, 0.12);
+      border: 2px solid var(--success);
+      color: var(--success);
+    }
+
+    .step-icon.error {
+      background: rgba(244, 63, 94, 0.1);
+      border: 2px solid var(--error);
+      color: var(--error);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .step-body   { flex: 1; min-width: 0; }
+    .step-title  { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+    .step-msg    { font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
+
+    /* ── Log ──────────────────────────────────────── */
+    .log-wrap {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+
+    .log-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      max-height: 120px;
+      overflow-y: auto;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+
+    .log-line        { display: block; }
+    .log-line.ok     { color: var(--success); }
+    .log-line.err    { color: var(--error); }
+
+    /* ── Cover image ──────────────────────────────── */
+    #cover-image-wrap { margin-bottom: 28px; }
+
+    #cover-img {
+      display: block;
+      width: 220px;
+      height: 220px;
+      object-fit: cover;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Audio cards ──────────────────────────────── */
+    .audio-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .audio-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .audio-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .audio-location {
+      font-size: 0.88rem;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 99px;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+    .badge.ok  { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+    .badge.err { background: rgba(244, 63, 94, 0.1);  color: var(--error); }
+
+    audio {
+      width: 100%;
+      height: 34px;
+      accent-color: var(--accent);
+    }
+
+    .no-audio {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>Dynamic Voice</h1>
+    <p>Generate localized audio ads and a cover image from a brand URL</p>
+  </div>
+
+  <!-- ── Form ───────────────────────────────────── -->
+  <div id="form-section" class="card">
+    <div class="field">
+      <label for="brand-input">Brand URL or name</label>
+      <input type="text" id="brand-input"
+        placeholder="https://example.com  or  'US Youth Soccer'" />
+    </div>
+    <div class="field">
+      <label for="campaign-input">Campaign description</label>
+      <textarea id="campaign-input" rows="4"
+        placeholder="Describe the campaign angle, moment, and audience in plain English…"></textarea>
+    </div>
+    <div id="error-banner" class="error-banner hidden"></div>
+    <button id="submit-btn" class="btn" onclick="startPipeline()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Generate ads
+    </button>
+  </div>
+
+  <!-- ── Pipeline progress ──────────────────────── -->
+  <div id="progress-section" class="card hidden">
+    <div class="section-label">Pipeline</div>
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-icon pending" id="icon-feeds">1</div>
+        <div class="step-body">
+          <div class="step-title">Fetch data</div>
+          <div class="step-msg" id="msg-feeds">Waiting to start…</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-icon pending" id="icon-audio">2</div>
+        <div class="step-body">
+          <div class="step-title">Generate audio ads</div>
+          <div class="step-msg" id="msg-audio">Waiting for data…</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-icon pending" id="icon-image">3</div>
+        <div class="step-body">
+          <div class="step-title">Create cover image</div>
+          <div class="step-msg" id="msg-image">Waiting for data…</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="log-wrap">
+      <div class="log-box" id="log-box"></div>
+    </div>
+  </div>
+
+  <!-- ── Results ────────────────────────────────── -->
+  <div id="results-section">
+
+    <div id="cover-image-wrap" class="hidden">
+      <div class="section-label">Cover image</div>
+      <img id="cover-img" src="" alt="Campaign cover image" />
+    </div>
+
+    <div id="audio-section" class="hidden">
+      <div class="section-label" style="margin-top:28px">Audio ads</div>
+      <div class="audio-grid" id="audio-grid"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  let evtSource = null;
+
+  // ── Step helpers ─────────────────────────────────────────────────────────
+
+  function setStep(key, state, msg) {
+    const icon = document.getElementById("icon-" + key);
+    icon.className = "step-icon " + state;
+    if (state === "done")    icon.innerHTML = "✓";
+    else if (state === "error") icon.innerHTML = "✕";
+    else                     icon.innerHTML = "";
+    if (msg !== undefined) document.getElementById("msg-" + key).textContent = msg;
+  }
+
+  function log(text, cls) {
+    const box = document.getElementById("log-box");
+    const line = document.createElement("span");
+    line.className = "log-line" + (cls ? " " + cls : "");
+    line.textContent = text;
+    box.appendChild(line);
+    box.appendChild(document.createTextNode("\n"));
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("error-banner");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ── Audio card renderer ───────────────────────────────────────────────────
+
+  function renderAudioCards(results) {
+    const grid = document.getElementById("audio-grid");
+    results.forEach((r) => {
+      const card = document.createElement("div");
+      card.className = "audio-card fade-up";
+
+      const isOk = r.status === "complete" && r.audio_url;
+      card.innerHTML = `
+        <div class="audio-header">
+          <span class="audio-location">${esc(r.location)}</span>
+          <span class="badge ${isOk ? "ok" : "err"}">${isOk ? "Ready" : "Unavailable"}</span>
+        </div>
+        ${isOk
+          ? `<audio controls src="${esc(r.audio_url)}"></audio>`
+          : `<span class="no-audio">Audio not available for this location.</span>`}
+      `;
+      grid.appendChild(card);
+    });
+
+    const section = document.getElementById("audio-section");
+    section.classList.remove("hidden");
+    section.classList.add("fade-up");
+  }
+
+  // ── Event handler ─────────────────────────────────────────────────────────
+
+  function handleEvent({ stage, message, data }) {
+    log(message, stage.endsWith("error") ? "err" : stage === "done" ? "ok" : null);
+
+    switch (stage) {
+      case "feeds_start":
+        setStep("feeds", "loading", message);
+        break;
+
+      case "feeds_done":
+        setStep("feeds", "done", message);
+        break;
+
+      case "gen_start":
+        setStep("audio", "pending", "Starting…");
+        setStep("image", "pending", "Starting…");
+        break;
+
+      case "audio_start":
+        setStep("audio", "loading", message);
+        break;
+
+      case "image_start":
+        setStep("image", "loading", message);
+        break;
+
+      case "audio_done":
+        setStep("audio", "done", message);
+        if (Array.isArray(data)) renderAudioCards(data);
+        break;
+
+      case "audio_error":
+        setStep("audio", "error", message);
+        break;
+
+      case "image_done":
+        setStep("image", "done", message);
+        if (data?.url) {
+          document.getElementById("cover-img").src = data.url;
+          const wrap = document.getElementById("cover-image-wrap");
+          wrap.classList.remove("hidden");
+          wrap.classList.add("fade-up");
+        }
+        break;
+
+      case "image_error":
+        setStep("image", "error", message);
+        break;
+
+      case "done":
+        evtSource.close();
+        document.getElementById("submit-btn").disabled = false;
+        break;
+
+      case "error":
+        evtSource.close();
+        showError(message);
+        document.getElementById("submit-btn").disabled = false;
+        ["feeds", "audio", "image"].forEach((k) => {
+          if (document.getElementById("icon-" + k).classList.contains("loading")) {
+            setStep(k, "error", "Failed");
+          }
+        });
+        break;
+    }
+  }
+
+  // ── Start pipeline ────────────────────────────────────────────────────────
+
+  async function startPipeline() {
+    const brandUrl = document.getElementById("brand-input").value.trim();
+    const campaign = document.getElementById("campaign-input").value.trim();
+
+    if (!brandUrl || !campaign) {
+      showError("Both fields are required.");
+      return;
+    }
+
+    // Reset UI
+    document.getElementById("error-banner").classList.add("hidden");
+    document.getElementById("submit-btn").disabled = true;
+    document.getElementById("progress-section").classList.remove("hidden");
+    document.getElementById("log-box").innerHTML = "";
+    document.getElementById("audio-grid").innerHTML = "";
+    document.getElementById("cover-image-wrap").classList.add("hidden");
+    document.getElementById("audio-section").classList.add("hidden");
+
+    // Reset steps
+    ["feeds", "audio", "image"].forEach((k, i) => {
+      const icon = document.getElementById("icon-" + k);
+      icon.className = "step-icon pending";
+      icon.innerHTML = String(i + 1);
+    });
+    document.getElementById("msg-feeds").textContent  = "Starting…";
+    document.getElementById("msg-audio").textContent  = "Waiting for data…";
+    document.getElementById("msg-image").textContent  = "Waiting for data…";
+
+    if (evtSource) evtSource.close();
+
+    // Start the pipeline
+    let resp;
+    try {
+      resp = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand_url: brandUrl, campaign }),
+      });
+    } catch {
+      showError("Could not reach the server. Is it running?");
+      document.getElementById("submit-btn").disabled = false;
+      return;
+    }
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      showError(body.error || "Server returned an error.");
+      document.getElementById("submit-btn").disabled = false;
+      return;
+    }
+
+    const { job_id } = await resp.json();
+    log(`Job ${job_id} started`);
+
+    // Open SSE stream
+    evtSource = new EventSource(`/api/events/${job_id}`);
+
+    evtSource.onmessage = (e) => {
+      try { handleEvent(JSON.parse(e.data)); }
+      catch (err) { log("Parse error: " + err, "err"); }
+    };
+
+    evtSource.onerror = () => {
+      evtSource.close();
+      log("Connection lost.", "err");
+      document.getElementById("submit-btn").disabled = false;
+    };
+  }
+
+  // Submit on Enter in brand input
+  document.getElementById("brand-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") startPipeline();
+  });
+</script>
+</body>
+</html>
