@@ -104,14 +104,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-function JsonBlock({ data }: { data: unknown }) {
-  return (
-    <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">
-      {JSON.stringify(data, null, 2)}
-    </pre>
-  )
-}
-
 function App() {
   const [step, setStep] = useState<Step>(1)
   const [brand, setBrand] = useState('')
@@ -425,9 +417,6 @@ function App() {
                     <summary className="cursor-pointer text-sm font-medium">
                       {loc.location} - {loc.summary}
                     </summary>
-                    <div className="mt-2">
-                      <JsonBlock data={loc.payload} />
-                    </div>
                   </details>
                 ))}
               </div>
@@ -451,17 +440,6 @@ function App() {
                   </span>
                 </div>
                 {result.error ? <p className="mt-2 text-sm text-rose-600">{result.error}</p> : null}
-                <details className="mt-3 rounded border p-2">
-                  <summary className="cursor-pointer text-sm">Request payload</summary>
-                  <div className="mt-2">{result.request ? <JsonBlock data={result.request} /> : null}</div>
-                </details>
-                <details className="mt-3 rounded border p-2">
-                  <summary className="cursor-pointer text-sm">Submit + poll responses</summary>
-                  <div className="mt-2 space-y-2">
-                    <JsonBlock data={result.submitResponse} />
-                    <JsonBlock data={result.pollResponse} />
-                  </div>
-                </details>
                 {result.pollResponse?.scriptText ? (
                   <p className="mt-3 rounded bg-slate-100 p-2 text-sm">{result.pollResponse.scriptText}</p>
                 ) : null}
@@ -520,12 +498,6 @@ function FeedCard({
           </p>
         ))}
       </div>
-      <details className="mt-3 rounded border p-2">
-        <summary className="cursor-pointer text-sm">Raw JSON</summary>
-        <div className="mt-2">
-          <JsonBlock data={feed?.data ?? null} />
-        </div>
-      </details>
     </article>
   )
 }
