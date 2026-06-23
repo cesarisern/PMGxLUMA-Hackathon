@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -69,6 +69,13 @@ type LocationOption = {
 const rawApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '/api'
 const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase
 const STEPS = ['Input', 'Feeds', 'Brief', 'Results']
+const FEED_ORDER = ['Brand', 'Campaign Context', 'Trends', 'Locations'] as const
+const FIELD_LABEL_OVERRIDES: Record<string, string> = {
+  cta: 'CTA',
+  cta_suffix: 'CTA Suffix',
+  geo: 'Region',
+  brand_url: 'Brand URL',
+}
 const API_OFFLINE_HINT =
   `Cannot reach API (base: ${API_BASE}). ` +
   'If running locally, start it with: cd api && ../.venv/bin/uvicorn server:app --reload --port 8002. ' +
@@ -209,7 +216,17 @@ function App() {
     return text.includes('api key') || text.includes('unavailable')
   }, [runData])
 
+  const isFeedsReady = runData?.status === 'complete'
+  const feedProgress = [
+    { label: 'Brand', ready: Boolean(runData?.feeds.brand?.data) },
+    { label: 'Campaign Context', ready: Boolean(runData?.feeds.context?.data) },
+    { label: 'Trends', ready: Boolean(runData?.feeds.trends?.data) },
+    { label: 'Locations', ready: (runData?.feeds.locations?.count ?? 0) > 0 },
+  ]
+  const readyFeedCount = feedProgress.filter((feed) => feed.ready).length
+
   const canContinueToStep3 =
+    isFeedsReady &&
     Boolean(runData?.feeds.brand?.data) &&
     Boolean(runData?.feeds.context?.data) &&
     Boolean(runData?.feeds.trends?.data) &&
@@ -328,16 +345,59 @@ function App() {
         <section className="mt-8 space-y-4">
           <h2 className="text-lg font-medium">Step 2 - Feed results</h2>
           <p className="text-sm text-slate-600">Polling run #{runId} every 2 seconds.</p>
+          <div className="rounded-lg border bg-white p-4 text-sm">
+            <p className="font-medium">
+              {isFeedsReady ? 'All feeds ready.' : `Feeds running: ${readyFeedCount}/${feedProgress.length} ready`}
+            </p>
+            <p className="mt-1 text-slate-600">Locations found: {runData?.feeds.locations?.count ?? 0}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {feedProgress.map((feed, index) => (
+                <span
+                  key={feed.label}
+                  className={`rounded border px-2 py-1 ${
+                    feed.ready
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-500'
+                  }`}
+                >
+                  {index + 1}. {feed.label}: {feed.ready ? 'ready' : 'running'}
+                </span>
+              ))}
+            </div>
+            {!isFeedsReady ? (
+              <p className="mt-2 text-slate-500">
+                Waiting for all feeds to finish before showing full feed details.
+              </p>
+            ) : null}
+          </div>
           {runError ? <p className="text-sm text-rose-600">{runError}</p> : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <FeedCard title="Brand" feed={runData?.feeds.brand} summaryKeys={['brand_name', 'mission', 'tone_of_voice', 'cta']} />
-            <FeedCard title="Campaign Context" feed={runData?.feeds.context} summaryKeys={['live_moment', 'campaign_angle']} warning={isContextWarning} />
-            <FeedCard title="Trends" feed={runData?.feeds.trends} summaryKeys={['traffic_signal', 'website_traffic', 'search_trends']} />
             <FeedCard
-              title="Locations"
+              title={`1. ${FEED_ORDER[0]}`}
+              feed={runData?.feeds.brand}
+              summaryKeys={['brand_name', 'mission', 'tone_of_voice', 'cta']}
+              revealData={isFeedsReady}
+            />
+            <FeedCard
+              title={`2. ${FEED_ORDER[1]}`}
+              feed={runData?.feeds.context}
+              summaryKeys={['live_moment', 'campaign_angle']}
+              warning={isFeedsReady && isContextWarning}
+              revealData={isFeedsReady}
+            />
+            <FeedCard
+              title={`3. ${FEED_ORDER[2]}`}
+              feed={runData?.feeds.trends}
+              summaryKeys={['traffic_signal', 'website_traffic', 'search_trends']}
+              revealData={isFeedsReady}
+            />
+            <FeedCard
+              title={`4. ${FEED_ORDER[3]}`}
               feed={runData?.feeds.locations}
               summaryKeys={[]}
               locationCount={runData?.feeds.locations?.count ?? 0}
+              locationNames={locationOptions.slice(0, 20).map((location) => location.name)}
+              revealData={isFeedsReady}
             />
           </div>
           <button
@@ -346,7 +406,7 @@ function App() {
             onClick={goToStep3}
             className="rounded-md bg-indigo-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Continue
+            {isFeedsReady ? 'Continue' : 'Continue (waiting for feeds...)'}
           </button>
         </section>
       )}
@@ -469,12 +529,16 @@ function FeedCard({
   summaryKeys,
   warning = false,
   locationCount,
+  locationNames = [],
+  revealData = true,
 }: {
   title: string
   feed: FeedBlob | LocationFeed | undefined
   summaryKeys: string[]
   warning?: boolean
   locationCount?: number
+  locationNames?: string[]
+  revealData?: boolean
 }) {
   const data = feed?.data as Record<string, unknown> | undefined
   return (
@@ -491,13 +555,30 @@ function FeedCard({
           Warning: feed mentions API key or unavailable text.
         </p>
       ) : null}
-      <div className="mt-3 space-y-1 text-sm">
-        {summaryKeys.map((key) => (
-          <p key={key}>
-            <span className="font-medium">{key}:</span> {stringifyValue(data?.[key])}
-          </p>
-        ))}
-      </div>
+      {!revealData ? (
+        <p className="mt-3 text-sm text-slate-500">Feed is running. Live output will appear once all feeds are ready.</p>
+      ) : (
+        <>
+          <div className="mt-3 space-y-1 text-sm">
+            {summaryKeys.map((key) => (
+              <p key={key}>
+                <span className="font-medium">{formatFieldLabel(key)}:</span>{' '}
+                <span>{renderDisplayValue(data?.[key])}</span>
+              </p>
+            ))}
+          </div>
+          {locationNames.length > 0 ? (
+            <div className="mt-3">
+              <p className="text-sm font-medium">Top 20 locations</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+                {locationNames.map((name, index) => (
+                  <li key={`${name}-${index}`}>{name}</li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        </>
+      )}
     </article>
   )
 }
@@ -511,11 +592,71 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function stringifyValue(value: unknown): string {
+function formatFieldLabel(key: string): string {
+  if (FIELD_LABEL_OVERRIDES[key]) return FIELD_LABEL_OVERRIDES[key]
+  return key
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function renderDisplayValue(value: unknown, depth = 0): ReactNode {
   if (value === undefined || value === null) return '-'
   if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.join(', ')
-  return JSON.stringify(value)
+  if (typeof value === 'number') return value.toLocaleString()
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'None'
+    const allPrimitive = value.every(
+      (item) => item === null || ['string', 'number', 'boolean'].includes(typeof item),
+    )
+    if (allPrimitive) {
+      return (
+        <span className="inline-flex flex-wrap gap-1 align-middle">
+          {value.map((item, index) => (
+            <span key={index} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+              {item === null ? 'None' : String(item)}
+            </span>
+          ))}
+        </span>
+      )
+    }
+    return (
+      <details className="rounded border bg-slate-50 p-2">
+        <summary className="cursor-pointer text-xs text-slate-600">View list ({value.length})</summary>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </details>
+    )
+  }
+
+  const record = value as Record<string, unknown>
+  const entries = Object.entries(record)
+  if (entries.length === 0) return 'None'
+  if (depth >= 2) {
+    return (
+      <details className="rounded border bg-slate-50 p-2">
+        <summary className="cursor-pointer text-xs text-slate-600">View details</summary>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">
+          {JSON.stringify(record, null, 2)}
+        </pre>
+      </details>
+    )
+  }
+
+  return (
+    <div className="mt-1 space-y-1 rounded border border-slate-200 bg-slate-50 p-2">
+      {entries.map(([key, nestedValue]) => (
+        <div key={key} className="grid grid-cols-[120px_1fr] gap-2">
+          <span className="text-xs font-medium text-slate-600">{formatFieldLabel(key)}</span>
+          <span className="text-xs text-slate-700">{renderDisplayValue(nestedValue, depth + 1)}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function getAssetUris(raw: unknown): string[] {
