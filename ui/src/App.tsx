@@ -66,19 +66,39 @@ type LocationOption = {
   url: string | null
 }
 
-const API_BASE = 'http://localhost:8000'
+const rawApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '/api'
+const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase
 const STEPS = ['Input', 'Feeds', 'Brief', 'Results']
+const API_OFFLINE_HINT =
+  `Cannot reach API (base: ${API_BASE}). ` +
+  'If running locally, start it with: cd api && ../.venv/bin/uvicorn server:app --reload --port 8000. ' +
+  'To use another host, set VITE_API_BASE_URL in ui/.env.'
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch {
+    throw new Error(API_OFFLINE_HINT)
+  }
+
   if (!res.ok) {
-    const detail = await res.text()
+    const raw = await res.text()
+    let detail = raw
+    try {
+      const json = JSON.parse(raw) as { detail?: string }
+      if (typeof json.detail === 'string' && json.detail.trim().length > 0) {
+        detail = json.detail
+      }
+    } catch {
+      // Keep raw response text if it's not JSON.
+    }
     throw new Error(detail || `Request failed with ${res.status}`)
   }
   return (await res.json()) as T
@@ -273,16 +293,23 @@ function App() {
               <span className="mb-1 block text-sm font-medium">Brand (URL or name)</span>
               <input
                 value={brand}
-                onChange={(event) => setBrand(event.target.value)}
+                onChange={(event) => {
+                  setBrand(event.target.value)
+                  if (runError) setRunError(null)
+                }}
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
                 placeholder="https://www.usyouthsoccer.org/"
+                autoComplete="url"
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Campaign</span>
               <textarea
                 value={campaign}
-                onChange={(event) => setCampaign(event.target.value)}
+                onChange={(event) => {
+                  setCampaign(event.target.value)
+                  if (runError) setRunError(null)
+                }}
                 className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2"
                 placeholder="Spring youth soccer registration..."
               />

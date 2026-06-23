@@ -2,6 +2,8 @@
 
 import os
 import re
+import random
+import time
 
 import httpx
 from anthropic import Anthropic
@@ -38,8 +40,32 @@ def _scrape_url(url: str) -> tuple[str, str]:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     print(f"[brand] Fetching {url} via Jina Reader...")
-    content = httpx.get(f"https://r.jina.ai/{url}", timeout=30).text
-    return content[:8000], url
+    jina_url = f"https://r.jina.ai/{url}"
+
+    # Keep this retry scope narrow and local to the flaky Jina scrape call.
+    max_attempts = 4
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = httpx.get(jina_url, timeout=30)
+            if response.status_code in (403, 429) or response.status_code >= 500:
+                raise httpx.HTTPStatusError(
+                    f"Retryable status code: {response.status_code}",
+                    request=response.request,
+                    response=response,
+                )
+            response.raise_for_status()
+            return response.text[:8000], url
+        except (httpx.ProxyError, httpx.TimeoutException, httpx.HTTPStatusError, httpx.NetworkError) as exc:
+            last_error = exc
+            if attempt == max_attempts:
+                break
+            # Exponential backoff with slight jitter to avoid synchronized retries.
+            sleep_seconds = (2 ** (attempt - 1)) + random.uniform(0, 0.35)
+            print(f"[brand] Jina fetch attempt {attempt}/{max_attempts} failed ({exc}); retrying in {sleep_seconds:.2f}s")
+            time.sleep(sleep_seconds)
+
+    raise last_error if last_error else RuntimeError("Jina scrape failed unexpectedly")
 
 
 def _search_name(name: str) -> tuple[str, str]:
