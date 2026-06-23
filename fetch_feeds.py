@@ -163,6 +163,22 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
         brand_url=brand_url,
         brand_name=results["brand"].get("brand_name", ""),
     )
+
+    if not results["locations"].get("locations"):
+        print("[locations] No locations found — applying default city fallback")
+        results["locations"]["locations"] = [
+            {"name": "New York City",  "type": "city", "cta_suffix": "in New York City",  "url": None},
+            {"name": "Los Angeles",    "type": "city", "cta_suffix": "in Los Angeles",    "url": None},
+            {"name": "Chicago",        "type": "city", "cta_suffix": "in Chicago",        "url": None},
+            {"name": "Houston",        "type": "city", "cta_suffix": "in Houston",        "url": None},
+            {"name": "Miami",          "type": "city", "cta_suffix": "in Miami",          "url": None},
+            {"name": "Mexico City",    "type": "city", "cta_suffix": "in Mexico City",    "url": None},
+            {"name": "London",         "type": "city", "cta_suffix": "in London",         "url": None},
+            {"name": "Paris",          "type": "city", "cta_suffix": "in Paris",          "url": None}
+        ]
+        results["locations"].setdefault("total", len(results["locations"]["locations"]))
+        results["locations"].setdefault("coverage", "default fallback — major cities in US, Mexico, and Europe")
+
     save("locations", results["locations"])
     db.save_locations(run_id, results["locations"])
 
