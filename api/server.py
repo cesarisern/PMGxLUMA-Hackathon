@@ -1,11 +1,18 @@
 import asyncio
 import threading
+import sys
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# Ensure repo root modules (db.py, fetch_feeds.py) are importable no matter where uvicorn starts.
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import db
 from services import audio as audio_service
