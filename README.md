@@ -7,7 +7,7 @@ Local full-stack wizard for running the existing feed pipeline and AudioStack ge
 ### Terminal 1 (API)
 
 ```bash
-cd api && ../.venv/bin/uvicorn server:app --reload --port 8000
+cd api && ../.venv/bin/uvicorn server:app --reload --port 8002
 ```
 
 ### Terminal 2 (UI)
@@ -18,4 +18,4 @@ cd ui && npm run dev
 
 ## Health check
 
-`GET http://localhost:8000/health`
+`GET http://127.0.0.1:8002/health`

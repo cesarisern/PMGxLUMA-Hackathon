@@ -1,6 +1,17 @@
 from typing import Any
+import json
+from pathlib import Path
 
 import db
+
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+
+
+def _load_json_file(file_name: str) -> dict[str, Any] | None:
+    path = DATA_DIR / file_name
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
 
 
 def get_run_inputs(run_id: int) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
@@ -22,14 +33,9 @@ def get_run_inputs(run_id: int) -> tuple[dict[str, Any], dict[str, Any], dict[st
             (run_id,),
         ).fetchall()
 
-    if not (brand_row and context_row and trends_row):
-        raise ValueError("Feed data not ready for this run.")
-
-    import json
-
-    brand = json.loads(brand_row["data"])
-    context = json.loads(context_row["data"])
-    trends = json.loads(trends_row["data"])
+    brand = json.loads(brand_row["data"]) if brand_row else _load_json_file("brand_corpus.json")
+    context = json.loads(context_row["data"]) if context_row else _load_json_file("campaign_context.json")
+    trends = json.loads(trends_row["data"]) if trends_row else _load_json_file("trend_signal.json")
     locations = [
         {
             "name": row["name"],
@@ -39,6 +45,14 @@ def get_run_inputs(run_id: int) -> tuple[dict[str, Any], dict[str, Any], dict[st
         }
         for row in location_rows
     ]
+    if not locations:
+        fallback_locations = _load_json_file("locations.json")
+        if fallback_locations:
+            locations = fallback_locations.get("locations", [])
+
+    if not (brand and context and trends and locations):
+        raise ValueError("Feed data not ready for this run.")
+
     return brand, context, trends, locations
 
 

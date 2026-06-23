@@ -21,8 +21,19 @@ def _headers() -> dict[str, str]:
     return {"x-api-key": api_key, "x-assume-org": org_id}
 
 
-def _submit_brief(payload: dict[str, Any], headers: dict[str, str]) -> tuple[str, dict[str, Any]]:
-    response = requests.post(f"{BASE}/creator/brief", headers=headers, json=payload, timeout=60)
+def _session() -> requests.Session:
+    # Bypass global HTTP(S)_PROXY env vars for AudioStack calls by default.
+    session = requests.Session()
+    session.trust_env = False
+    return session
+
+
+def _submit_brief(
+    session: requests.Session,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+) -> tuple[str, dict[str, Any]]:
+    response = session.post(f"{BASE}/creator/brief", headers=headers, json=payload, timeout=60)
     response.raise_for_status()
     raw = response.json()
     audioforms = raw.get("data", {}).get("audioforms", [])
@@ -31,13 +42,18 @@ def _submit_brief(payload: dict[str, Any], headers: dict[str, str]) -> tuple[str
     return audioforms[0]["audioformId"], raw
 
 
-def _poll(audioform_id: str, headers: dict[str, str], timeout: int = 180) -> dict[str, Any]:
+def _poll(
+    session: requests.Session,
+    audioform_id: str,
+    headers: dict[str, str],
+    timeout: int = 180,
+) -> dict[str, Any]:
     poll_headers = {**headers, "version": "4"}
     deadline = time.time() + timeout
     last_raw: dict[str, Any] = {}
 
     while time.time() < deadline:
-        response = requests.get(f"{BASE}/audioforms/{audioform_id}", headers=poll_headers, timeout=60)
+        response = session.get(f"{BASE}/audioforms/{audioform_id}", headers=poll_headers, timeout=60)
         if response.status_code == 202:
             last_raw = response.json() if response.content else {"statusCode": 202}
             time.sleep(3)
@@ -62,6 +78,8 @@ def generate_for_locations(
 ) -> list[dict[str, Any]]:
     db.init()
     headers = _headers()
+    direct_session = _session()
+    proxy_session = requests.Session()
     brand, context, trends, all_locations = brief_service.get_run_inputs(run_id)
     selected = [loc for loc in all_locations if loc["name"] in set(location_names)]
     if not selected:
@@ -78,8 +96,13 @@ def generate_for_locations(
         if progress_cb:
             progress_cb(result)
         try:
-            audioform_id, submit_raw = _submit_brief(payload, headers)
-            poll_data = _poll(audioform_id, headers)
+            try:
+                audioform_id, submit_raw = _submit_brief(direct_session, payload, headers)
+                poll_data = _poll(direct_session, audioform_id, headers)
+            except requests.exceptions.RequestException:
+                # Fallback to environment proxy configuration when direct networking is unavailable.
+                audioform_id, submit_raw = _submit_brief(proxy_session, payload, headers)
+                poll_data = _poll(proxy_session, audioform_id, headers)
             status = poll_data["status"]
             result.update(
                 {

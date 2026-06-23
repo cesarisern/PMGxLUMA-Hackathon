@@ -71,7 +71,7 @@ const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase
 const STEPS = ['Input', 'Feeds', 'Brief', 'Results']
 const API_OFFLINE_HINT =
   `Cannot reach API (base: ${API_BASE}). ` +
-  'If running locally, start it with: cd api && ../.venv/bin/uvicorn server:app --reload --port 8000. ' +
+  'If running locally, start it with: cd api && ../.venv/bin/uvicorn server:app --reload --port 8002. ' +
   'To use another host, set VITE_API_BASE_URL in ui/.env.'
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -218,7 +218,10 @@ function App() {
   }, [runData])
 
   const canContinueToStep3 =
-    runData?.status === 'complete' && (runData.feeds.locations?.count ?? 0) >= 1
+    Boolean(runData?.feeds.brand?.data) &&
+    Boolean(runData?.feeds.context?.data) &&
+    Boolean(runData?.feeds.trends?.data) &&
+    (runData?.feeds.locations?.count ?? 0) >= 1
 
   const goToStep3 = () => {
     const all = locationOptions.map((loc) => loc.name)
