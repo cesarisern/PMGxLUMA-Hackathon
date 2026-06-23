@@ -75,6 +75,16 @@ def _build_tone(brand: dict[str, Any]) -> str:
 def make_brief(brand: dict[str, Any], context: dict[str, Any], trends: dict[str, Any], loc: dict[str, Any]) -> dict[str, Any]:
     description = _build_description(brand, context, trends)
     tone = _build_tone(brand)
+    local_url = (loc.get("url") or "").strip()
+    description = (
+        f"{description} "
+        f"Make sure the ad appeals to a local audience in {loc.get('name', '')} "
+        f"and drives listeners to visit the local association"
+        f"{' at ' + local_url if local_url else ''}."
+    ).strip()
+    cta = f"{brand.get('cta', '')} — {loc.get('cta_suffix', '')}"
+    if local_url:
+        cta = f"{cta} — Visit your local association: {local_url}"
     return {
         "audioformVersion": "2",
         "brief": {
@@ -82,7 +92,7 @@ def make_brief(brand: dict[str, Any], context: dict[str, Any], trends: dict[str,
                 "productName": brand.get("brand_name", ""),
                 "productDescription": description,
                 "lang": "en",
-                "callToAction": f"{brand.get('cta', '')} — {loc.get('cta_suffix', '')}",
+                "callToAction": cta,
                 "targetAudience": brand.get("target_audience", ""),
                 "toneOfScript": tone,
             },
