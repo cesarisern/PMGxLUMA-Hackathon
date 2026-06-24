@@ -28,6 +28,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import fetch_feeds
 import generate_audio
+import generate_video_from_image
+
+VIDEO_DIR = REPO_ROOT / "data" / "videos"
 
 _jobs: dict = {}
 _lock = threading.Lock()
@@ -102,8 +105,39 @@ def _pipeline_worker(job_id: str, brand_url: str, campaign: str) -> None:
         t1.join()
         t2.join()
 
-        _jobs[job_id]["results"] = {"audio": audio_result[0], "image": image_url[0]}
-        emit("done", "Pipeline complete", {"audio": audio_result[0], "image": image_url[0]})
+        # Stage 3 — video generation (requires both image and audio)
+        video_result: list = [None]
+
+        def _video() -> None:
+            if not image_url[0]:
+                emit("video_error", "Video skipped: no image available.")
+                return
+            if not audio_result[0]:
+                emit("video_error", "Video skipped: no audio available.")
+                return
+            try:
+                emit("video_start", "Generating Luma video clip and combining with each audio version…")
+                results = generate_video_from_image.run(image_url[0])
+                video_result[0] = results
+                complete = sum(1 for r in results if r.get("status") == "complete")
+                emit("video_done", f"{complete} of {len(results)} videos ready", results)
+            except Exception as exc:
+                emit("video_error", f"Video generation failed: {exc}")
+
+        t3 = threading.Thread(target=_video, daemon=True)
+        t3.start()
+        t3.join()
+
+        _jobs[job_id]["results"] = {
+            "audio": audio_result[0],
+            "image": image_url[0],
+            "videos": video_result[0],
+        }
+        emit("done", "Pipeline complete", {
+            "audio": audio_result[0],
+            "image": image_url[0],
+            "videos": video_result[0],
+        })
 
     except Exception as exc:
         emit("error", f"Pipeline failed: {exc}")
@@ -134,6 +168,14 @@ class _Handler(BaseHTTPRequestHandler):
             self._serve_file(FRONTEND_DIR / "index.html", "text/html; charset=utf-8")
         elif self.path.startswith("/api/events/"):
             self._sse(self.path.rsplit("/", 1)[-1])
+        elif self.path.startswith("/api/videos/"):
+            filename = self.path[len("/api/videos/"):]
+            # Reject any path traversal attempts
+            if "/" in filename or "\\" in filename or not filename:
+                self.send_response(400)
+                self.end_headers()
+                return
+            self._serve_file(VIDEO_DIR / filename, "video/mp4")
         else:
             self.send_response(404)
             self.end_headers()
@@ -179,12 +221,34 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
-        self.send_response(200)
-        self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(data)))
-        self._cors()
-        self.end_headers()
-        self.wfile.write(data)
+
+        file_size = len(data)
+        range_header = self.headers.get("Range", "")
+
+        if range_header.startswith("bytes="):
+            # Serve a partial response (required for browser video/audio playback).
+            range_spec = range_header[6:]
+            start_str, _, end_str = range_spec.partition("-")
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+            end = min(end, file_size - 1)
+            chunk = data[start:end + 1]
+            self.send_response(206)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+            self.send_header("Content-Length", str(len(chunk)))
+            self.send_header("Accept-Ranges", "bytes")
+            self._cors()
+            self.end_headers()
+            self.wfile.write(chunk)
+        else:
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(file_size))
+            self.send_header("Accept-Ranges", "bytes")
+            self._cors()
+            self.end_headers()
+            self.wfile.write(data)
 
     def _json(self, obj: dict, status: int = 200) -> None:
         body = json.dumps(obj).encode()

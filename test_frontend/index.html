@@ -321,6 +321,37 @@
       color: var(--text-muted);
       font-style: italic;
     }
+
+    /* ── Video in audio card ──────────────────────── */
+    .video-wrap {
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .video-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .video-player {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      background: #000;
+      display: block;
+    }
+
+    .video-download {
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .video-download:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -379,6 +410,14 @@
         <div class="step-body">
           <div class="step-title">Create cover image</div>
           <div class="step-msg" id="msg-image">Waiting for data…</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-icon pending" id="icon-video">4</div>
+        <div class="step-body">
+          <div class="step-title">Generate videos</div>
+          <div class="step-msg" id="msg-video">Waiting for image and audio…</div>
         </div>
       </div>
 
@@ -451,6 +490,7 @@
     results.forEach((r) => {
       const card = document.createElement("div");
       card.className = "audio-card fade-up";
+      card.dataset.afId = r.audioform_id || "";
 
       const isOk = r.status === "complete" && r.audio_url;
       card.innerHTML = `
@@ -468,6 +508,26 @@
     const section = document.getElementById("audio-section");
     section.classList.remove("hidden");
     section.classList.add("fade-up");
+  }
+
+  // ── Attach videos to existing audio cards ────────────────────────────────
+
+  function attachVideos(videoResults) {
+    videoResults.forEach((v) => {
+      if (v.status !== "complete" || !v.video_filename) return;
+      const card = document.querySelector(`.audio-card[data-af-id="${CSS.escape(v.audioform_id)}"]`);
+      if (!card) return;
+
+      const videoUrl = `/api/videos/${encodeURIComponent(v.video_filename)}`;
+      const wrap = document.createElement("div");
+      wrap.className = "video-wrap fade-up";
+      wrap.innerHTML = `
+        <span class="video-label">Video</span>
+        <video class="video-player" controls preload="metadata" src="${esc(videoUrl)}"></video>
+        <a class="video-download" href="${esc(videoUrl)}" download="${esc(v.video_filename)}">Download MP4</a>
+      `;
+      card.appendChild(wrap);
+    });
   }
 
   // ── Event handler ─────────────────────────────────────────────────────────
@@ -520,6 +580,19 @@
         setStep("image", "error", message);
         break;
 
+      case "video_start":
+        setStep("video", "loading", message);
+        break;
+
+      case "video_done":
+        setStep("video", "done", message);
+        if (Array.isArray(data)) attachVideos(data);
+        break;
+
+      case "video_error":
+        setStep("video", "error", message);
+        break;
+
       case "done":
         evtSource.close();
         document.getElementById("submit-btn").disabled = false;
@@ -529,7 +602,7 @@
         evtSource.close();
         showError(message);
         document.getElementById("submit-btn").disabled = false;
-        ["feeds", "audio", "image"].forEach((k) => {
+        ["feeds", "audio", "image", "video"].forEach((k) => {
           if (document.getElementById("icon-" + k).classList.contains("loading")) {
             setStep(k, "error", "Failed");
           }
@@ -559,7 +632,7 @@
     document.getElementById("audio-section").classList.add("hidden");
 
     // Reset steps
-    ["feeds", "audio", "image"].forEach((k, i) => {
+    ["feeds", "audio", "image", "video"].forEach((k, i) => {
       const icon = document.getElementById("icon-" + k);
       icon.className = "step-icon pending";
       icon.innerHTML = String(i + 1);
@@ -567,6 +640,7 @@
     document.getElementById("msg-feeds").textContent  = "Starting…";
     document.getElementById("msg-audio").textContent  = "Waiting for data…";
     document.getElementById("msg-image").textContent  = "Waiting for data…";
+    document.getElementById("msg-video").textContent  = "Waiting for image and audio…";
 
     if (evtSource) evtSource.close();
 
