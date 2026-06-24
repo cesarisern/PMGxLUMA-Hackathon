@@ -612,11 +612,12 @@ function FeedCard({
   loadingTexts?: readonly string[]
 }) {
   const [loadingIdx, setLoadingIdx] = useState(0)
+  const [typedText, setTypedText] = useState('')
   useEffect(() => {
     if (revealData) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const scheduleNext = () => {
-      const delay = 3000 + Math.random() * 4000
+      const delay = 6000 + Math.random() * 6000
       timer = setTimeout(() => {
         setLoadingIdx((i) => (i + 1) % loadingTexts.length)
         scheduleNext()
@@ -630,13 +631,37 @@ function FeedCard({
 
   const data = feed?.data as Record<string, unknown> | undefined
   const displayStatus = statusOverride ?? feed?.status ?? 'pending'
-  const placeholderText = loadingTexts[loadingIdx % Math.max(loadingTexts.length, 1)] || 'Loading'
-  const chipLabel = revealData ? displayStatus : placeholderText
+  const placeholderText = loadingTexts[loadingIdx % Math.max(loadingTexts.length, 1)] || 'Loading...'
+  const chipLabel = revealData ? displayStatus || '' : placeholderText
+  useEffect(() => {
+    const target = chipLabel || 'Loading...'
+    let timer: ReturnType<typeof setTimeout> | undefined
+    setTypedText('')
+    if (target.length === 0) {
+      setTypedText('Loading...')
+      return
+    }
+    let i = 0
+    const step = () => {
+      i += 1
+      setTypedText((prev) => target.slice(0, i))
+      if (i < target.length) {
+        timer = setTimeout(step, 30)
+      }
+    }
+    timer = setTimeout(step, 0)
+    return () => {
+      if (timer) clearTimeout(timer)
+      setTypedText(target)
+    }
+  }, [chipLabel])
+
+  const chipDisplay = revealData ? chipLabel || 'Loading...' : typedText || 'Loading...'
   return (
     <article className="pmg-panel p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-medium">{title}</h3>
-        <span className={`pmg-status-chip ${statusChipClass(displayStatus)}`}>{chipLabel}</span>
+        <span className={`pmg-status-chip ${statusChipClass(displayStatus)}`}>{chipDisplay}</span>
       </div>
       {typeof locationCount === 'number' ? (
         <p className="mt-2 text-sm text-[var(--pmg-muted)]">Location count: {locationCount}</p>
