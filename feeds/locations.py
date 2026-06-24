@@ -100,7 +100,11 @@ def fetch(client: Anthropic, brand_url: str, brand_name: str) -> dict:
     # Step 2 — scrape the locations page if found, else use main page
     if locations_url:
         print(f"[locations] Found locations page: {locations_url}")
-        content = _get_jina_text(locations_url)
+        try:
+            content = _get_jina_text(locations_url)
+        except Exception as e:
+            print(f"[locations] Locations page fetch failed ({e}) — falling back to main page content")
+            content = main_content
     else:
         print("[locations] No dedicated locations page found — extracting from main site")
         content = main_content

@@ -197,3 +197,106 @@ body {
   background: rgba(234, 120, 122, 0.16);
   color: #ffd6d6;
 }
+
+/* ── Results tabs ── */
+
+.pmg-tab-bar {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--pmg-surface-2);
+  border-radius: calc(var(--pmg-radius-sm) - 2px);
+  padding: 3px;
+}
+
+.pmg-tab {
+  border: none;
+  border-radius: calc(var(--pmg-radius-sm) - 5px);
+  padding: 0.4rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--pmg-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.pmg-tab:hover {
+  color: var(--pmg-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pmg-tab-active {
+  border: none;
+  border-radius: calc(var(--pmg-radius-sm) - 5px);
+  padding: 0.4rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--pmg-text);
+  background: var(--pmg-surface);
+  cursor: default;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Generation loading animations ── */
+
+@keyframes pmg-wave {
+  0%, 100% { transform: scaleY(0.12); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes pmg-shimmer {
+  from { background-position: -700px 0; }
+  to { background-position: 700px 0; }
+}
+
+@keyframes pmg-live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(120, 192, 166, 0.6); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(120, 192, 166, 0); }
+}
+
+@keyframes pmg-status-fade {
+  0% { opacity: 0; transform: translateY(5px); }
+  12%, 88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+
+@keyframes pmg-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pmg-waveform-bar {
+  width: 3px;
+  border-radius: 99px;
+  transform-origin: bottom center;
+  animation: pmg-wave var(--pmg-wave-dur, 1s) ease-in-out infinite;
+  animation-delay: var(--pmg-wave-delay, 0s);
+}
+
+.pmg-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--pmg-surface-2) 0%,
+    rgba(99, 186, 194, 0.06) 40%,
+    rgba(99, 186, 194, 0.18) 50%,
+    rgba(99, 186, 194, 0.06) 60%,
+    var(--pmg-surface-2) 100%
+  );
+  background-size: 700px 100%;
+  animation: pmg-shimmer 2.6s linear infinite;
+}
+
+.pmg-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pmg-success);
+  animation: pmg-live-pulse 2s ease-in-out infinite;
+}
+
+.pmg-spin-slow {
+  animation: pmg-spin-slow 3s linear infinite;
+}

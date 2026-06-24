@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { CampaignAnalytics } from './CampaignAnalytics'
 
 type Step = 1 | 2 | 3 | 4
-type Page = 'wizard' | 'analytics'
+type BriefTab = 'brief' | 'targeting'
 
 type FeedBlob = { status: string; data: unknown } | null
 
@@ -169,8 +169,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function App() {
-  const [page, setPage] = useState<Page>('wizard')
   const [step, setStep] = useState<Step>(1)
+  const [briefTab, setBriefTab] = useState<BriefTab>('brief')
   const [brand, setBrand] = useState('')
   const [campaign, setCampaign] = useState('')
   const [runId, setRunId] = useState<number | null>(null)
@@ -398,9 +398,9 @@ function App() {
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-6 py-10">
       <section className="pmg-panel p-6 md:p-8">
-        <p className="pmg-kicker">Engineered for impact</p>
+        <p className="pmg-kicker">RESONATE</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--pmg-text)] md:text-4xl">
-          Dynamic Voice Local Wizard
+          Dynamic Localization
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-[var(--pmg-muted)] md:text-base">
           Build localized voice creative through a guided flow: collect feed intelligence, review brief data, and
@@ -408,25 +408,6 @@ function App() {
         </p>
       </section>
 
-      <div className="mt-4 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setPage('wizard')}
-          className={page === 'wizard' ? 'pmg-button-primary px-4 py-2 text-sm font-medium' : 'pmg-button-secondary px-4 py-2 text-sm'}
-        >
-          Wizard
-        </button>
-        <button
-          type="button"
-          onClick={() => setPage('analytics')}
-          className={page === 'analytics' ? 'pmg-button-primary px-4 py-2 text-sm font-medium' : 'pmg-button-secondary px-4 py-2 text-sm'}
-        >
-          Campaign Analytics
-        </button>
-      </div>
-
-      {page === 'wizard' && (
-        <>
       <div className="mt-6 flex flex-wrap gap-2">
         {STEPS.map((label, index) => {
           const current = index + 1 === step
@@ -461,7 +442,7 @@ function App() {
             </label>
             <label className="block">
               <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-[var(--pmg-muted)]">Campaign</span>
+                <span className="text-sm font-medium text-[var(--pmg-muted)]">Campaign description</span>
                 <button
                   type="button"
                   disabled={brand.trim().length < 3 || isSuggestingCampaign}
@@ -481,9 +462,7 @@ function App() {
                 placeholder="Spring youth soccer registration..."
               />
             </label>
-            <p className="text-sm text-[var(--pmg-muted)]">
-              Be specific - avoid generic phrases like &quot;Enroll now!&quot;
-            </p>
+
             {runError ? <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{runError}</p> : null}
             <button
               type="submit"
@@ -499,38 +478,12 @@ function App() {
       {step === 2 && (
         <section className="mt-8 space-y-4" key={runId ?? 'no-run'}>
           <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 2 - Feed results</h2>
-          <p className="text-sm text-[var(--pmg-muted)]">Polling run #{runId} every 2 seconds.</p>
-          <div className="pmg-panel-muted p-4 text-sm">
-            <p className="font-medium text-[var(--pmg-text)]">
-              {runFailed
-                ? 'Feed run failed.'
-                : isFeedsReady
-                  ? 'All feeds ready.'
-                  : `Feeds running: ${readyFeedCount}/${feedProgress.length} ready`}
-            </p>
-            <p className="mt-1 text-[var(--pmg-muted)]">
-              {isFeedsReady
-                ? `Locations found: ${runData?.feeds.locations?.count ?? 0}`
-                : 'Locations found: waiting for feed completion'}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              {feedProgress.map((feed, index) => (
-                <span
-                  key={feed.label}
-                  className={`pmg-status-chip ${
-                    runFailed ? 'pmg-status-failed' : feed.ready ? 'pmg-status-complete' : 'pmg-status-running'
-                  }`}
-                >
-                  {index + 1}. {feed.label}: {runFailed ? 'failed' : feed.ready ? 'ready' : 'running'}
-                </span>
-              ))}
-            </div>
-            {!isFeedsReady && !runFailed ? (
-              <p className="mt-2 text-[var(--pmg-muted)]">
-                Waiting for all feeds to finish before showing full feed details.
-              </p>
-            ) : null}
-          </div>
+          <FeedStatusPanel
+            feedProgress={feedProgress}
+            isFeedsReady={isFeedsReady}
+            runFailed={runFailed}
+            locationCount={runData?.feeds.locations?.count ?? 0}
+          />
           {runError ? <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{runError}</p> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <FeedCard
@@ -571,32 +524,55 @@ function App() {
           </div>
           {imageState && imageState.status !== 'idle' && (
             <div className="pmg-panel-muted p-4 text-sm">
-              <p className="font-medium text-[var(--pmg-text)]">Visual generation (auto-started)</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <span className={`pmg-status-chip ${statusChipClass(
-                  ['generating_clips', 'complete', 'clips_failed'].includes(imageState.status) ? 'complete' : imageState.status
-                )}`}>
-                  Image: {imageState.imageUrl ? 'ready' : imageState.status === 'failed' ? 'failed' : 'running'}
-                </span>
-                <span className={`pmg-status-chip ${statusChipClass(
-                  imageState.status === 'complete' ? 'complete'
-                    : imageState.status === 'clips_failed' ? 'failed'
-                    : imageState.status === 'generating_clips' ? 'running'
-                    : 'idle'
-                )}`}>
-                  Clips: {imageState.status === 'complete' ? `${imageState.clipUrls?.length ?? 0} ready`
-                    : imageState.status === 'clips_failed' ? 'failed'
-                    : imageState.status === 'generating_clips' ? 'running'
-                    : 'pending'}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  {imageState.status === 'failed' ? (
+                    <div
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+                      style={{ background: 'rgba(234, 120, 122, 0.15)' }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" style={{ color: 'var(--pmg-danger)' }}>
+                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                  ) : imageState.imageUrl ? (
+                    <div
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+                      style={{ background: 'rgba(120, 192, 166, 0.18)' }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" style={{ color: 'var(--pmg-success)' }}>
+                        <path d="M3 8.5l3.5 3L13 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="relative h-8 w-8 flex-shrink-0">
+                      <div
+                        className="pmg-spin-slow absolute inset-0 rounded-full"
+                        style={{ background: 'conic-gradient(from 0deg, var(--pmg-accent) 0%, var(--pmg-accent-2) 35%, transparent 65%)' }}
+                      />
+                      <div className="absolute inset-[2px] flex items-center justify-center rounded-full" style={{ background: 'var(--pmg-surface-2)' }}>
+                        <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" style={{ color: 'var(--pmg-accent)' }}>
+                          <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                          <circle cx="5.5" cy="7" r="1.1" fill="currentColor" opacity="0.7" />
+                          <path d="M1.5 11l3.5-3 2.5 2.5 2-2 4.5 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  <span className="text-xs" style={{ color: imageState.imageUrl ? 'var(--pmg-success)' : imageState.status === 'failed' ? 'var(--pmg-danger)' : 'var(--pmg-muted)' }}>
+                    {imageState.status === 'failed' ? 'Image failed'
+                      : imageState.imageUrl ? 'Image ready'
+                      : 'Generating image...'}
+                  </span>
+                </div>
+                {(imageState.status === 'generating_clips' || imageState.status === 'complete' || imageState.status === 'clips_failed') && (
+                  <span className="text-xs" style={{ color: imageState.status === 'clips_failed' ? 'var(--pmg-danger)' : imageState.status === 'complete' ? 'var(--pmg-success)' : 'var(--pmg-muted)' }}>
+                    {imageState.status === 'complete' ? `${imageState.clipUrls?.length ?? 0} clips ready`
+                      : imageState.status === 'clips_failed' ? 'Clips failed'
+                      : 'Generating clips...'}
+                  </span>
+                )}
               </div>
-              {imageState.imageUrl && (
-                <img
-                  src={imageState.imageUrl}
-                  alt="Generated campaign image"
-                  className="mt-3 max-h-48 rounded-lg object-cover"
-                />
-              )}
               {imageState.error && (
                 <p className="pmg-alert-error mt-2 rounded-xl px-3 py-2 text-xs">{imageState.error}</p>
               )}
@@ -660,28 +636,52 @@ function App() {
               Generate ads
             </button>
           </div>
-          <div className="pmg-panel p-4">
-            <h3 className="text-base font-medium text-[var(--pmg-text)]">Brief preview (read-only)</h3>
-            {briefError ? <p className="pmg-alert-error mt-2 rounded-xl px-3 py-2 text-sm">{briefError}</p> : null}
-            {!briefPreview ? (
-              <p className="mt-2 text-sm text-[var(--pmg-muted)]">Select locations to load preview.</p>
-            ) : (
-              <div className="mt-3 space-y-4">
-                <div className="grid gap-2 text-sm md:grid-cols-2">
-                  <Field label="productName" value={briefPreview.shared.productName} />
-                  <Field label="targetAudience" value={briefPreview.shared.targetAudience} />
-                  <Field label="toneOfScript" value={briefPreview.shared.toneOfScript} />
-                </div>
-                <Field label="productDescription" value={briefPreview.shared.productDescription} />
-                {briefPreview.locations.map((loc) => (
-                  <details key={loc.location} className="pmg-panel-muted p-3">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      {loc.location} - {loc.summary}
-                    </summary>
-                  </details>
-                ))}
+          <div className="pmg-panel overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--pmg-border)] px-4 py-3">
+              <h3 className="text-sm font-semibold text-[var(--pmg-text)]">Campaign intelligence</h3>
+              <div className="pmg-tab-bar">
+                <button
+                  type="button"
+                  className={briefTab === 'brief' ? 'pmg-tab-active' : 'pmg-tab'}
+                  onClick={() => setBriefTab('brief')}
+                >
+                  Creative brief
+                </button>
+                <button
+                  type="button"
+                  className={briefTab === 'targeting' ? 'pmg-tab-active' : 'pmg-tab'}
+                  onClick={() => setBriefTab('targeting')}
+                >
+                  Targeting recommendation
+                </button>
               </div>
-            )}
+            </div>
+            <div className="p-4">
+              {briefTab === 'targeting' ? (
+                <CampaignAnalytics />
+              ) : briefError ? (
+                <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{briefError}</p>
+              ) : !briefPreview ? (
+                <p className="mt-2 text-sm text-[var(--pmg-muted)]">Select locations to load preview.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-2 text-sm md:grid-cols-2">
+                    <Field label="productName" value={briefPreview.shared.productName} />
+                    <Field label="targetAudience" value={briefPreview.shared.targetAudience} />
+                    <Field label="toneOfScript" value={briefPreview.shared.toneOfScript} />
+                  </div>
+                  <Field label="productDescription" value={briefPreview.shared.productDescription} />
+                  {briefPreview.locations.map((loc) => (
+                    <details key={loc.location} className="pmg-panel-muted">
+                      <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-[var(--pmg-text)]">
+                        {loc.location}
+                      </summary>
+                      <p className="px-3 pb-3 text-sm text-[var(--pmg-muted)]">{loc.summary}</p>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -689,6 +689,16 @@ function App() {
       {step === 4 && (
         <section className="mt-8 space-y-6">
           <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 4 - Generation results</h2>
+
+          {<>
+          {/* Full-screen loading hero — shown before any results arrive */}
+          {audioState?.status === 'running' && audioState.results.length === 0 && (
+            <GenerationLoadingHero
+              locationCount={selectedLocations.length}
+              imageState={imageState}
+              audioState={audioState}
+            />
+          )}
 
           {/* Campaign visual card */}
           {imageState?.imageUrl && (
@@ -767,15 +777,179 @@ function App() {
           >
             Start over
           </button>
+          </>}
         </section>
       )}
-        </>
-      )}
-
-      {page === 'analytics' && (
-        <div className="mt-6"><CampaignAnalytics /></div>
-      )}
     </main>
+  )
+}
+
+function GenerationLoadingHero({
+  locationCount,
+  imageState,
+  audioState,
+}: {
+  locationCount: number
+  imageState: ImageStateResponse | null
+  audioState: AudioStateResponse | null
+}) {
+  const [statusIndex, setStatusIndex] = useState(0)
+
+  const STATUS_MESSAGES = [
+    'Analyzing campaign brief...',
+    'Writing location-specific scripts...',
+    'Producing audio with AudioStack...',
+    'Preparing visual assets...',
+  ]
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStatusIndex((i) => (i + 1) % STATUS_MESSAGES.length)
+    }, 2600)
+    return () => clearInterval(timer)
+  }, [STATUS_MESSAGES.length])
+
+  const completedAudio = (audioState?.results ?? []).filter((r) => r.status === 'complete').length
+
+  const stages: { label: string; sub: string; status: 'complete' | 'running' | 'pending' }[] = [
+    {
+      label: 'Campaign image',
+      sub: imageState?.imageUrl ? 'Ready' : 'Generating',
+      status: imageState?.imageUrl ? 'complete' : 'running',
+    },
+    {
+      label: 'Audio',
+      sub: `${completedAudio} / ${locationCount} locations`,
+      status: completedAudio === locationCount && locationCount > 0 ? 'complete' : 'running',
+    },
+    {
+      label: 'Video',
+      sub: 'Awaiting audio',
+      status: 'pending',
+    },
+  ]
+
+  const BARS = Array.from({ length: 30 }, (_, i) => ({
+    height: 12 + Math.abs(Math.sin(i * 0.65) * Math.cos(i * 0.45)) * 46,
+    duration: 0.6 + ((i * 0.13) % 0.75),
+    delay: (i * 0.09) % 1.15,
+    isAccent2: i % 5 === 2,
+    opacity: 0.45 + Math.abs(Math.sin(i * 0.9)) * 0.55,
+  }))
+
+  return (
+    <div
+      className="pmg-panel relative overflow-hidden p-10"
+      style={{
+        background:
+          'radial-gradient(ellipse 80% 55% at 50% 70%, rgba(42, 85, 131, 0.22) 0%, var(--pmg-surface) 70%)',
+      }}
+    >
+      <div className="relative flex flex-col items-center gap-7">
+        {/* live indicator */}
+        <div className="flex items-center gap-2">
+          <span className="pmg-live-dot" />
+          <span
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: 'var(--pmg-success)' }}
+          >
+            Live
+          </span>
+        </div>
+
+        {/* animated waveform */}
+        <div
+          className="flex items-end justify-center gap-[3px]"
+          style={{ height: '68px' }}
+          aria-hidden
+        >
+          {BARS.map((bar, i) => (
+            <div
+              key={i}
+              className="pmg-waveform-bar"
+              style={{
+                height: `${bar.height}px`,
+                background: bar.isAccent2
+                  ? 'linear-gradient(to top, var(--pmg-accent-2), rgba(0, 98, 107, 0.3))'
+                  : 'linear-gradient(to top, var(--pmg-accent), rgba(42, 85, 131, 0.3))',
+                opacity: bar.opacity,
+                '--pmg-wave-dur': `${bar.duration}s`,
+                '--pmg-wave-delay': `${bar.delay}s`,
+              } as React.CSSProperties}
+            />
+          ))}
+        </div>
+
+        {/* title + cycling status */}
+        <div className="text-center">
+          <h3 className="text-xl font-semibold tracking-tight text-[var(--pmg-text)]">
+            Generating {locationCount} ad{locationCount !== 1 ? 's' : ''}
+          </h3>
+          <div className="mt-2 h-5 overflow-hidden">
+            <p
+              key={statusIndex}
+              className="text-sm text-[var(--pmg-muted)]"
+              style={{ animation: 'pmg-status-fade 2.6s ease-in-out forwards' }}
+            >
+              {STATUS_MESSAGES[statusIndex]}
+            </p>
+          </div>
+        </div>
+
+        {/* pipeline stage pills */}
+        <div className="flex flex-wrap items-stretch justify-center gap-3">
+          {stages.map((stage) => (
+            <div
+              key={stage.label}
+              className="flex items-center gap-3 rounded-2xl px-4 py-2.5"
+              style={{ background: 'var(--pmg-surface-2)' }}
+            >
+              <div
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
+                style={{
+                  background:
+                    stage.status === 'complete'
+                      ? 'rgba(120, 192, 166, 0.2)'
+                      : stage.status === 'running'
+                        ? 'rgba(42, 85, 131, 0.4)'
+                        : 'rgba(255,255,255,0.04)',
+                }}
+              >
+                {stage.status === 'complete' ? (
+                  <svg viewBox="0 0 12 12" fill="none" className="h-3.5 w-3.5" style={{ color: 'var(--pmg-success)' }}>
+                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : stage.status === 'running' ? (
+                  <span className="pmg-live-dot" style={{ width: '6px', height: '6px' }} />
+                ) : (
+                  <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3 opacity-30" style={{ color: 'var(--pmg-muted)' }}>
+                    <circle cx="6" cy="6" r="3" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p
+                  className="text-xs font-medium"
+                  style={{
+                    color: stage.status === 'pending' ? 'var(--pmg-muted)' : 'var(--pmg-text)',
+                    opacity: stage.status === 'pending' ? 0.5 : 1,
+                  }}
+                >
+                  {stage.label}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--pmg-muted)', opacity: stage.status === 'pending' ? 0.4 : 0.8 }}>
+                  {stage.sub}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs" style={{ color: 'var(--pmg-muted)', opacity: 0.6 }}>
+          Generation typically takes 1–3 minutes
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -826,6 +1000,11 @@ function LocationResultCard({
           <p className="pmg-panel-muted mt-3 px-3 py-2 text-sm text-[var(--pmg-muted)]">
             {audioResult.pollResponse.scriptText}
           </p>
+        ) : audioResult.status === 'running' ? (
+          <div className="mt-3 space-y-1.5">
+            <div className="pmg-shimmer h-3 w-4/5 rounded-full" />
+            <div className="pmg-shimmer h-3 w-3/5 rounded-full" />
+          </div>
         ) : null}
         {audioUrl ? (
           <div className="mt-3 flex flex-col gap-2">
@@ -833,6 +1012,10 @@ function LocationResultCard({
             <DownloadLink href={audioUrl} filename={`${audioResult.location.replace(/\s+/g, '-')}.wav`}>
               Download audio
             </DownloadLink>
+          </div>
+        ) : audioResult.status === 'running' ? (
+          <div className="mt-3 flex items-center gap-3">
+            <div className="pmg-shimmer h-10 flex-1 rounded-full" />
           </div>
         ) : null}
       </div>
@@ -866,9 +1049,14 @@ function LocationResultCard({
             </div>
           ) : videoResult?.status === 'failed' ? (
             <p className="pmg-alert-error rounded-xl px-3 py-2 text-sm">{videoResult.error ?? 'Video generation failed'}</p>
+          ) : videoGenerating ? (
+            <div className="space-y-2 py-1">
+              <div className="pmg-shimmer h-40 w-full rounded-xl" />
+              <p className="text-xs text-[var(--pmg-muted)]">Assembling video — this may take a few minutes.</p>
+            </div>
           ) : (
             <p className="py-2 text-sm text-[var(--pmg-muted)]">
-              {videoGenerating ? 'Assembling video — this may take a few minutes.' : 'Video will generate once clips and audio are both ready.'}
+              Video will generate once clips and audio are both ready.
             </p>
           )}
         </div>
@@ -889,6 +1077,139 @@ function DownloadLink({ href, filename, children }: { href: string; filename: st
       </svg>
       {children ?? filename}
     </a>
+  )
+}
+
+const FEED_KEY_MAP: Record<string, keyof typeof FEED_LOADING_TEXT> = {
+  Brand: 'brand',
+  'Campaign Context': 'context',
+  Trends: 'trends',
+  Locations: 'locations',
+}
+
+function FeedStatusRow({
+  index,
+  label,
+  ready,
+  failed,
+}: {
+  index: number
+  label: string
+  ready: boolean
+  failed: boolean
+}) {
+  const feedKey = FEED_KEY_MAP[label] ?? 'brand'
+  const texts = FEED_LOADING_TEXT[feedKey]
+  const [textIdx, setTextIdx] = useState(0)
+
+  useEffect(() => {
+    if (ready || failed) return
+    const t = setInterval(() => setTextIdx((i) => (i + 1) % texts.length), 2200)
+    return () => clearInterval(t)
+  }, [ready, failed, texts.length])
+
+  return (
+    <div className="flex items-center gap-4 px-5 py-3.5">
+      {/* Status indicator */}
+      <div
+        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+        style={{
+          background: failed
+            ? 'rgba(234, 120, 122, 0.15)'
+            : ready
+              ? 'rgba(120, 192, 166, 0.15)'
+              : 'rgba(42, 85, 131, 0.3)',
+        }}
+      >
+        {failed ? (
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" style={{ color: 'var(--pmg-danger)' }}>
+            <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        ) : ready ? (
+          <svg viewBox="0 0 12 12" fill="none" className="h-3.5 w-3.5" style={{ color: 'var(--pmg-success)' }}>
+            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <span
+            className="pmg-live-dot"
+            style={{ width: '7px', height: '7px', background: 'var(--pmg-accent)', boxShadow: '0 0 0 0 rgba(42, 85, 131, 0.6)' }}
+          />
+        )}
+      </div>
+
+      {/* Label */}
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-[var(--pmg-muted)]">Feed {index}</p>
+        <p className="text-sm font-medium text-[var(--pmg-text)]">{label}</p>
+      </div>
+
+      {/* Status text */}
+      <p
+        key={failed ? 'failed' : ready ? 'ready' : textIdx}
+        className="flex-shrink-0 text-right text-xs"
+        style={{
+          color: failed ? 'var(--pmg-danger)' : ready ? 'var(--pmg-success)' : 'var(--pmg-muted)',
+          animation: !ready && !failed ? 'pmg-status-fade 2.2s ease-in-out forwards' : undefined,
+          minWidth: '130px',
+        }}
+      >
+        {failed ? 'Failed' : ready ? 'Ready' : texts[textIdx]}
+      </p>
+    </div>
+  )
+}
+
+function FeedStatusPanel({
+  feedProgress,
+  isFeedsReady,
+  runFailed,
+  locationCount,
+}: {
+  feedProgress: { label: string; ready: boolean }[]
+  isFeedsReady: boolean
+  runFailed: boolean
+  locationCount: number
+}) {
+  return (
+    <div className="pmg-panel overflow-hidden">
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-4"
+        style={{ borderBottom: '1px solid var(--pmg-border)' }}
+      >
+        <div className="flex items-center gap-3">
+          <div>
+            <p className="pmg-kicker">Intelligence pipeline</p>
+            <p className="mt-0.5 text-sm font-semibold text-[var(--pmg-text)]">
+              {runFailed
+                ? 'Pipeline failed'
+                : isFeedsReady
+                  ? `${locationCount} location${locationCount !== 1 ? 's' : ''} identified`
+                  : 'Collecting campaign signals'}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`pmg-status-chip ${
+            runFailed ? 'pmg-status-failed' : isFeedsReady ? 'pmg-status-complete' : 'pmg-status-running'
+          }`}
+        >
+          {runFailed ? 'failed' : isFeedsReady ? 'ready' : 'running'}
+        </span>
+      </div>
+
+      {/* Footer */}
+      {!isFeedsReady && !runFailed && (
+        <div
+          className="px-5 py-3"
+          style={{ borderTop: '1px solid var(--pmg-border)', background: 'rgba(42, 85, 131, 0.06)' }}
+        >
+          <p className="text-xs text-[var(--pmg-muted)]">
+            Full feed data will appear once all signals are collected.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
