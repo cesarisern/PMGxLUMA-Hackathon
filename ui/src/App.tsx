@@ -518,10 +518,13 @@ function App() {
                 {result.pollResponse?.scriptText ? (
                   <p className="pmg-panel-muted mt-3 p-3 text-sm">{result.pollResponse.scriptText}</p>
                 ) : null}
-                {result.audioUrl ? <audio controls src={result.audioUrl} className="mt-3 w-full" /> : null}
-                {getAssetUris(result.pollResponse?.raw).map((uri) => (
-                  <audio key={uri} controls src={uri} className="mt-2 w-full" />
-                ))}
+                {(result.audioUrl ?? getAssetUris(result.pollResponse?.raw)[0]) ? (
+                  <audio
+                    controls
+                    src={result.audioUrl ?? getAssetUris(result.pollResponse?.raw)[0]}
+                    className="mt-3 w-full"
+                  />
+                ) : null}
               </article>
             ))}
           </div>
