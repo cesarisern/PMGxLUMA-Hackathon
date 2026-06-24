@@ -611,10 +611,26 @@ function FeedCard({
   statusOverride?: string
   loadingTexts?: readonly string[]
 }) {
+  const [loadingIdx, setLoadingIdx] = useState(0)
+  useEffect(() => {
+    if (revealData) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const scheduleNext = () => {
+      const delay = 3000 + Math.random() * 4000
+      timer = setTimeout(() => {
+        setLoadingIdx((i) => (i + 1) % loadingTexts.length)
+        scheduleNext()
+      }, delay)
+    }
+    scheduleNext()
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [revealData, loadingTexts.length])
+
   const data = feed?.data as Record<string, unknown> | undefined
   const displayStatus = statusOverride ?? feed?.status ?? 'pending'
-  const placeholderText =
-    loadingTexts[Math.floor(Date.now() / 5000) % Math.max(loadingTexts.length, 1)] || 'Loading'
+  const placeholderText = loadingTexts[loadingIdx % Math.max(loadingTexts.length, 1)] || 'Loading'
   const chipLabel = revealData ? displayStatus : placeholderText
   return (
     <article className="pmg-panel p-4">
