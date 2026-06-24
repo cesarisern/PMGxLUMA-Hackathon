@@ -1,3 +1,26 @@
+# PMGxLUMA Hackathon Local UI
+
+Local full-stack wizard for running the existing feed pipeline and AudioStack generation.
+
+## Run locally
+
+### Terminal 1 (API)
+
+```bash
+cd api && ../.venv/bin/uvicorn server:app --reload --port 8002
+```
+
+### Terminal 2 (UI)
+
+```bash
+cd ui && npm run dev
+```
+
+## Health check
+
+`GET http://127.0.0.1:8002/health`
+
+
 ✦ To test the functionality in this project, you can run the core Python
   scripts directly from your terminal. Based on the file structure and
   the headers of the scripts, here is the recommended workflow:
