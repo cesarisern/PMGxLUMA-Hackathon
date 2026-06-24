@@ -28,6 +28,8 @@ load_dotenv(dotenv_path="../.env", override=True)
 
 VIDEO_DIR = ROOT_DIR / "data" / "videos"
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+IMAGE_DIR = ROOT_DIR / "data" / "images"
+IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Dynamic Voice API")
 app.add_middleware(
@@ -38,6 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static/videos", StaticFiles(directory=str(VIDEO_DIR)), name="static_videos")
+app.mount("/static/images", StaticFiles(directory=str(IMAGE_DIR)), name="static_images")
 
 RUNS: dict[int, dict[str, Any]] = {}
 AUDIO_STATE: dict[int, dict[str, Any]] = {}
@@ -177,6 +180,7 @@ async def create_run(body: RunCreateRequest) -> dict[str, Any]:
             IMAGE_STATE[run_id] = {
                 "status": "running",
                 "imageUrl": None,
+                "imageUrl1x1": None,
                 "clipUrls": None,
                 "prompt": None,
                 "error": None,
@@ -185,6 +189,7 @@ async def create_run(body: RunCreateRequest) -> dict[str, Any]:
             img_result = await asyncio.to_thread(image_service.generate, run_id)
             with STATE_LOCK:
                 IMAGE_STATE[run_id]["imageUrl"] = img_result["imageUrl"]
+                IMAGE_STATE[run_id]["imageUrl1x1"] = img_result.get("imageUrl1x1")
                 IMAGE_STATE[run_id]["prompt"] = img_result["prompt"]
                 IMAGE_STATE[run_id]["status"] = "generating_clips"
         except Exception as exc:
@@ -317,6 +322,7 @@ async def generate_image(run_id: int) -> dict[str, Any]:
         IMAGE_STATE[run_id] = {
             "status": "running",
             "imageUrl": None,
+            "imageUrl1x1": None,
             "clipUrls": None,
             "prompt": None,
             "error": None,
@@ -327,6 +333,7 @@ async def generate_image(run_id: int) -> dict[str, Any]:
             img_result = await asyncio.to_thread(image_service.generate, run_id)
             with STATE_LOCK:
                 IMAGE_STATE[run_id]["imageUrl"] = img_result["imageUrl"]
+                IMAGE_STATE[run_id]["imageUrl1x1"] = img_result.get("imageUrl1x1")
                 IMAGE_STATE[run_id]["prompt"] = img_result["prompt"]
                 IMAGE_STATE[run_id]["status"] = "generating_clips"
         except Exception as exc:
@@ -362,11 +369,12 @@ def get_image_result(run_id: int) -> dict[str, Any]:
     with STATE_LOCK:
         state = IMAGE_STATE.get(run_id)
     if not state:
-        return {"runId": run_id, "status": "idle", "imageUrl": None, "clipUrls": None}
+        return {"runId": run_id, "status": "idle", "imageUrl": None, "imageUrl1x1": None, "clipUrls": None}
     return {
         "runId": run_id,
         "status": state["status"],
         "imageUrl": state.get("imageUrl"),
+        "imageUrl1x1": state.get("imageUrl1x1"),
         "clipUrls": state.get("clipUrls"),
         "prompt": state.get("prompt"),
         "error": state.get("error"),

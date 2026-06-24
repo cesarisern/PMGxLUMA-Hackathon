@@ -1,11 +1,11 @@
 """
 Generate polished social-media MP4 videos from a Luma image URL + Audiostack audio outputs.
 
-Video structure (30 s total):
-  1. Static image hold          3 s
-  2. Montage: 5 × 5 s Luma clips, 4 × 0.5 s xfade transitions   23 s
-  3. Brand colour gradient end card with logo                      5 s
-  (two 0.5 s transitions between segments account for the final total)
+Video structure (~28 s total):
+  1. Static image hold                                              3 s
+  2. Montage: 4 × 5 s Luma clips, 3 × 1.5 s brand-colour flashes 21.5 s
+  3. Brand colour gradient end card with logo                       5 s
+  (two 0.5 s transitions between segments)
 
 One master visual track is assembled; each audio version is muxed against that
 same master with its own timed caption track burned in.
@@ -46,13 +46,18 @@ FONTS_DIR  = Path(__file__).parent / "fonts"
 FONT_PATH  = FONTS_DIR / "BebasNeue-Regular.ttf"
 FONT_URL   = "https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf"
 
-N_CLIPS        = 5
-CLIP_DURATION  = 5        # seconds — Luma limit for start_frame mode
-TRANSITION_DUR = 0.5      # xfade crossfade duration
-STATIC_DUR     = 3        # opening still-image hold
-MONTAGE_DUR    = N_CLIPS * CLIP_DURATION - (N_CLIPS - 1) * TRANSITION_DUR  # 23 s
-END_CARD_DUR   = 5        # brand colour gradient end card
-# Total: 3 + 23 − 0.5 + 5 − 0.5 = 30.0 s
+N_CLIPS          = 4
+CLIP_DURATION    = 5        # seconds — Luma limit for start_frame mode
+BRAND_FLASH_HALF = 0.5      # fade to/from brand colour on each side (seconds)
+BRAND_FLASH_DUR  = 1.5      # total brand-colour flash clip: 0.5 in + 0.5 hold + 0.5 out
+TRANSITION_DUR   = 0.5      # xfade for static→montage and montage→end_card
+STATIC_DUR       = 3        # opening still-image hold
+MONTAGE_DUR      = (        # 21.5 s
+    CLIP_DURATION
+    + (N_CLIPS - 1) * (BRAND_FLASH_DUR + CLIP_DURATION - 2 * BRAND_FLASH_HALF)
+)
+END_CARD_DUR     = 5        # brand colour gradient end card
+# Total: 3 + 21.5 − 0.5 + 5 − 0.5 ≈ 28.5 s
 
 
 # ---------------------------------------------------------------------------
@@ -264,24 +269,51 @@ def _make_static_hold(image_url: str, duration: int, dest: Path) -> None:
         )
 
 
-def _stitch_montage(clips: list[Path], dest: Path) -> None:
+def _stitch_montage(clips: list[Path], brand_colour: str, dest: Path) -> None:
+    """Stitch clips with brand-colour flash transitions between each pair."""
     n = len(clips)
-    fc_parts = []
-    for i in range(1, n):
-        in0 = "[0:v]" if i == 1 else f"[v{i-1}]"
-        out = "[vout]" if i == n - 1 else f"[v{i}]"
-        offset = i * (CLIP_DURATION - TRANSITION_DUR)
-        fc_parts.append(
-            f"{in0}[{i}:v]xfade=transition=fade:duration={TRANSITION_DUR}:offset={offset}{out}"
+    w, h = _video_size(clips[0])
+    hex_color = brand_colour.lstrip("#")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        flash_path = Path(tmp) / "brand_flash.mp4"
+        _run_ff(
+            "-f", "lavfi",
+            "-i", f"color=c=0x{hex_color}:size={w}x{h}:rate=24:duration={BRAND_FLASH_DUR}",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast",
+            str(flash_path),
         )
-    inputs = [arg for clip in clips for arg in ("-i", str(clip))]
-    _run_ff(
-        *inputs,
-        "-filter_complex", ";".join(fc_parts),
-        "-map", "[vout]", "-an",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "23",
-        str(dest),
-    )
+
+        # Interleave: clip0, flash, clip1, flash, ..., clipN-1  (2N-1 inputs)
+        items: list[Path] = []
+        for i, clip in enumerate(clips):
+            items.append(clip)
+            if i < n - 1:
+                items.append(flash_path)
+
+        inputs = [arg for item in items for arg in ("-i", str(item))]
+
+        fc_parts: list[str] = []
+        current_end = float(CLIP_DURATION)
+        for step in range(1, len(items)):
+            in0 = "[0:v]" if step == 1 else f"[t{step - 1}]"
+            out = "[vout]" if step == len(items) - 1 else f"[t{step}]"
+            offset = round(current_end - BRAND_FLASH_HALF, 6)
+            fc_parts.append(
+                f"{in0}[{step}:v]xfade=transition=fade:"
+                f"duration={BRAND_FLASH_HALF}:offset={offset}{out}"
+            )
+            # output duration = offset + next_stream_duration
+            next_dur = BRAND_FLASH_DUR if step % 2 == 1 else float(CLIP_DURATION)
+            current_end = round(offset + next_dur, 6)
+
+        _run_ff(
+            *inputs,
+            "-filter_complex", ";".join(fc_parts),
+            "-map", "[vout]", "-an",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "23",
+            str(dest),
+        )
 
 
 def _make_end_card(colours: list[str], logo_bytes: bytes | None, duration: int, dest: Path, w: int, h: int) -> None:
@@ -471,9 +503,10 @@ def run(
     print("[video] Creating static image hold…")
     _make_static_hold(image_url, STATIC_DUR, static)
 
+    primary_colour = brand_colours[0] if brand_colours else "#1a1a2e"
     montage = VIDEO_DIR / "montage.mp4"
-    print("[video] Stitching montage with crossfades…")
-    _stitch_montage(raw_clips, montage)
+    print("[video] Stitching montage with brand-colour flash transitions…")
+    _stitch_montage(raw_clips, primary_colour, montage)
 
     w, h = _video_size(montage)
 
@@ -482,7 +515,7 @@ def run(
     _make_end_card(brand_colours, logo_bytes, END_CARD_DUR, end_card, w, h)
 
     master = VIDEO_DIR / "master.mp4"
-    print("[video] Assembling 30 s master…")
+    print("[video] Assembling ~28 s master…")
     _assemble_master(static, montage, end_card, master)
 
     results = []

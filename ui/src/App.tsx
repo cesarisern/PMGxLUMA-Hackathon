@@ -65,6 +65,7 @@ type ImageStateResponse = {
   runId: number
   status: 'idle' | 'running' | 'generating_clips' | 'complete' | 'failed' | 'clips_failed'
   imageUrl: string | null
+  imageUrl1x1: string | null
   clipUrls: string[] | null
   prompt: string | null
   error?: string
@@ -701,36 +702,70 @@ function App() {
           )}
 
           {/* Campaign visual card */}
-          {imageState?.imageUrl && (
+          {imageState && imageState.status !== 'idle' && (
             <div className="pmg-panel overflow-hidden">
               <div className="flex items-start gap-5 p-5">
+                {/* Image thumbnail or skeleton */}
                 <div
                   className="relative flex-shrink-0 overflow-hidden rounded-xl"
                   style={{ width: '7rem', aspectRatio: '9 / 16' }}
                 >
-                  <img
-                    src={imageState.imageUrl}
-                    alt="Campaign visual"
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
+                  {imageState.imageUrl ? (
+                    <img
+                      src={imageState.imageUrl}
+                      alt="Campaign visual"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="pmg-shimmer absolute inset-0 rounded-xl" />
+                  )}
                 </div>
+
                 <div className="flex min-w-0 flex-1 flex-col gap-3 py-1">
                   <div>
-                    <p className="pmg-kicker">Campaign visual</p>
-                    <h3 className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--pmg-text)]">
-                      {productName}
-                    </h3>
-                    {runData?.campaign && (
-                      <p className="mt-1.5 line-clamp-3 text-sm text-[var(--pmg-muted)]">{runData.campaign}</p>
+                    {imageState.imageUrl ? (
+                      <>
+                        <p className="pmg-kicker">Campaign visual</p>
+                        <h3 className="mt-1.5 text-xl font-semibold tracking-tight text-[var(--pmg-text)]">
+                          {productName}
+                        </h3>
+                        {runData?.campaign && (
+                          <p className="mt-1.5 line-clamp-3 text-sm text-[var(--pmg-muted)]">{runData.campaign}</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="pmg-shimmer h-3 w-20 rounded-full" />
+                        <div className="pmg-shimmer mt-2.5 h-5 w-40 rounded-full" />
+                        <div className="pmg-shimmer mt-2 h-3 w-56 rounded-full" />
+                        <div className="pmg-shimmer mt-1.5 h-3 w-48 rounded-full" />
+                      </>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <DownloadLink
-                      href={`${API_BASE}/proxy-download?url=${encodeURIComponent(imageState.imageUrl)}&filename=campaign-visual.jpg`}
-                      filename="campaign-visual.jpg"
-                    >
-                      Download image
-                    </DownloadLink>
+                    {imageState.imageUrl ? (
+                      <>
+                        <DownloadLink
+                          href={`${API_BASE}/proxy-download?url=${encodeURIComponent(imageState.imageUrl)}&filename=campaign-visual-9x16.jpg`}
+                          filename="campaign-visual-9x16.jpg"
+                        >
+                          Download 9:16 (Social)
+                        </DownloadLink>
+                        {imageState.imageUrl1x1 && (
+                          <DownloadLink
+                            href={`${API_BASE}${imageState.imageUrl1x1}`}
+                            filename="campaign-visual-1x1.jpg"
+                          >
+                            Download 1:1 (Spotify)
+                          </DownloadLink>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="pmg-shimmer h-8 w-36 rounded-xl" />
+                        <div className="pmg-shimmer h-8 w-32 rounded-xl" />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -740,7 +775,13 @@ function App() {
           {/* Video generation status banner */}
           {videoState && videoState.status !== 'idle' && (
             <div className="pmg-panel-muted flex items-center gap-3 px-4 py-3 text-sm">
-              <span className={`pmg-status-chip ${statusChipClass(videoState.status)}`}>
+              <span className={`pmg-status-chip inline-flex items-center gap-1.5 ${statusChipClass(videoState.status)}`}>
+                {videoState.status === 'running' && (
+                  <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#b8d8fa] opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#b8d8fa]" />
+                  </span>
+                )}
                 {videoState.status}
               </span>
               <span className="text-[var(--pmg-muted)]">

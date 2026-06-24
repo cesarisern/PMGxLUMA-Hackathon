@@ -1,5 +1,7 @@
+import io
 import sys
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +9,7 @@ import db
 from services import brief as brief_service
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
+IMAGES_DIR = ROOT_DIR / "data" / "images"
 
 
 def _build_prompt(context: dict, campaign: str = "", brand_colours: list[str] | None = None) -> str:
@@ -34,7 +37,7 @@ def _build_prompt(context: dict, campaign: str = "", brand_colours: list[str] | 
 
     return (
         f"A premium lifestyle photograph for this ad campaign: {scene}. "
-        "Square composition (1:1), subject and action fill the entire frame edge to edge. "
+        "Tall portrait composition (9:16), subject and action fill the entire frame edge to edge. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
         f"Cinematic colour grade. {colour_hint}"
         "Natural directional sunlight, late afternoon. "
@@ -66,7 +69,7 @@ def generate(run_id: int) -> dict[str, Any]:
 
     from luma_agents import Luma
     client = Luma()
-    generation = client.generations.create(prompt=prompt, aspect_ratio="1:1")
+    generation = client.generations.create(prompt=prompt, aspect_ratio="9:16")
 
     while generation.state not in ("completed", "failed"):
         time.sleep(2)
@@ -79,8 +82,28 @@ def generate(run_id: int) -> dict[str, Any]:
 
     image_url = generation.output[0].url
     print(f"[image-service] Image ready — {image_url}")
+
+    # Crop a 1:1 version (center square of the 9:16 portrait) for Spotify / square use
+    image_url_1x1: str | None = None
+    try:
+        from PIL import Image as _PILImage
+        IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        img_bytes = urllib.request.urlopen(image_url).read()
+        img = _PILImage.open(io.BytesIO(img_bytes))
+        img_w, img_h = img.size
+        # Center-crop the portrait to a square
+        y0 = (img_h - img_w) // 2
+        img_1x1 = img.crop((0, y0, img_w, y0 + img_w))
+        path_1x1 = IMAGES_DIR / f"{run_id}_1x1.jpg"
+        img_1x1.save(str(path_1x1), "JPEG", quality=90)
+        image_url_1x1 = f"/static/images/{run_id}_1x1.jpg"
+        print(f"[image-service] 1:1 crop saved — {path_1x1.name}")
+    except Exception as exc:
+        print(f"[image-service] 1:1 crop failed, skipping: {exc}")
+
     return {
         "imageUrl": image_url,
+        "imageUrl1x1": image_url_1x1,
         "prompt": prompt,
         "context": context,
         "brand_colours": brand_colours,
