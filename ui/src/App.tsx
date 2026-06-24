@@ -70,6 +70,36 @@ const rawApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.tr
 const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase
 const STEPS = ['Input', 'Feeds', 'Brief', 'Results']
 const FEED_ORDER = ['Brand', 'Campaign Context', 'Trends', 'Locations'] as const
+const FEED_LOADING_TEXT = {
+  brand: [
+    'Reading website...',
+    'Understanding brand...',
+    'Extracting insights...',
+    'Identifying strengths...',
+    'Building profile...',
+  ],
+  context: [
+    'Reading brief...',
+    'Understanding goals...',
+    'Identifying audience...',
+    'Mapping objectives...',
+    'Building strategy...',
+  ],
+  trends: [
+    'Scanning signals...',
+    'Analyzing trends...',
+    'Finding opportunities...',
+    'Tracking momentum...',
+    'Ranking insights...',
+  ],
+  locations: [
+    'Discovering markets...',
+    'Mapping regions...',
+    'Finding locations...',
+    'Evaluating reach...',
+    'Prioritizing targets...',
+  ],
+} as const
 const FIELD_LABEL_OVERRIDES: Record<string, string> = {
   cta: 'CTA',
   cta_suffix: 'CTA Suffix',
@@ -136,11 +166,14 @@ function App() {
     }
 
     const load = async () => {
+      const currentRunId = runId
       try {
         const data = await apiFetch<RunResponse>(`/runs/${runId}`)
+        if (runId !== currentRunId) return
         setRunData(data)
         setRunError(data.error ?? null)
       } catch (error) {
+        if (runId !== currentRunId) return
         setRunError((error as Error).message)
       }
     }
@@ -155,13 +188,16 @@ function App() {
       return
     }
 
+    const currentRunId = runId
     const params = new URLSearchParams({ locations: selectedLocations.join(',') })
     apiFetch<BriefPreviewResponse>(`/runs/${runId}/brief-preview?${params.toString()}`)
       .then((data) => {
+        if (runId !== currentRunId) return
         setBriefPreview(data)
         setBriefError(null)
       })
       .catch((error) => {
+        if (runId !== currentRunId) return
         setBriefError((error as Error).message)
       })
   }, [runId, selectedLocations, step])
@@ -172,11 +208,14 @@ function App() {
     }
 
     const load = async () => {
+      const currentRunId = runId
       try {
         const state = await apiFetch<AudioStateResponse>(`/runs/${runId}/audio`)
+        if (runId !== currentRunId) return
         setAudioState(state)
         setAudioError(state.error ?? null)
       } catch (error) {
+        if (runId !== currentRunId) return
         setAudioError((error as Error).message)
       }
     }
@@ -197,6 +236,11 @@ function App() {
       setIsSubmitting(true)
       setRunError(null)
       setRunData(null)
+      setSelectedLocations([])
+      setBriefPreview(null)
+      setBriefError(null)
+      setAudioState(null)
+      setAudioError(null)
       const result = await apiFetch<{ runId: number; status: string }>('/runs', {
         method: 'POST',
         body: JSON.stringify({ brand: brand.trim(), campaign: campaign.trim() }),
@@ -219,11 +263,15 @@ function App() {
 
   const isFeedsReady = runData?.status === 'complete'
   const runFailed = runData?.status === 'failed'
+  const brandReady = Boolean(runData?.feeds.brand?.data)
+  const contextReady = Boolean(runData?.feeds.context?.data)
+  const trendsReady = Boolean(runData?.feeds.trends?.data)
+  const locationsReady = (runData?.feeds.locations?.count ?? 0) > 0
   const feedProgress = [
-    { label: 'Brand', ready: isFeedsReady && Boolean(runData?.feeds.brand?.data) },
-    { label: 'Campaign Context', ready: isFeedsReady && Boolean(runData?.feeds.context?.data) },
-    { label: 'Trends', ready: isFeedsReady && Boolean(runData?.feeds.trends?.data) },
-    { label: 'Locations', ready: isFeedsReady && (runData?.feeds.locations?.count ?? 0) > 0 },
+    { label: 'Brand', ready: brandReady },
+    { label: 'Campaign Context', ready: contextReady },
+    { label: 'Trends', ready: trendsReady },
+    { label: 'Locations', ready: locationsReady },
   ]
   const readyFeedCount = feedProgress.filter((feed) => feed.ready).length
 
@@ -346,7 +394,7 @@ function App() {
       )}
 
       {step === 2 && (
-        <section className="mt-8 space-y-4">
+        <section className="mt-8 space-y-4" key={runId ?? 'no-run'}>
           <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 2 - Feed results</h2>
           <p className="text-sm text-[var(--pmg-muted)]">Polling run #{runId} every 2 seconds.</p>
           <div className="pmg-panel-muted p-4 text-sm">
@@ -386,23 +434,26 @@ function App() {
               title={`1. ${FEED_ORDER[0]}`}
               feed={runData?.feeds.brand}
               summaryKeys={['brand_name', 'mission', 'tone_of_voice', 'cta']}
-              revealData={isFeedsReady}
-              statusOverride={runFailed ? 'failed' : isFeedsReady ? 'complete' : 'running'}
+              revealData={isFeedsReady && brandReady}
+              statusOverride={runFailed ? 'failed' : isFeedsReady && brandReady ? 'complete' : 'running'}
+              loadingTexts={FEED_LOADING_TEXT.brand}
             />
             <FeedCard
               title={`2. ${FEED_ORDER[1]}`}
               feed={runData?.feeds.context}
               summaryKeys={['live_moment', 'campaign_angle']}
-              warning={isFeedsReady && isContextWarning}
-              revealData={isFeedsReady}
-              statusOverride={runFailed ? 'failed' : isFeedsReady ? 'complete' : 'running'}
+              warning={isFeedsReady && contextReady && isContextWarning}
+              revealData={isFeedsReady && contextReady}
+              statusOverride={runFailed ? 'failed' : isFeedsReady && contextReady ? 'complete' : 'running'}
+              loadingTexts={FEED_LOADING_TEXT.context}
             />
             <FeedCard
               title={`3. ${FEED_ORDER[2]}`}
               feed={runData?.feeds.trends}
               summaryKeys={['traffic_signal', 'website_traffic', 'search_trends']}
-              revealData={isFeedsReady}
-              statusOverride={runFailed ? 'failed' : isFeedsReady ? 'complete' : 'running'}
+              revealData={isFeedsReady && trendsReady}
+              statusOverride={runFailed ? 'failed' : isFeedsReady && trendsReady ? 'complete' : 'running'}
+              loadingTexts={FEED_LOADING_TEXT.trends}
             />
             <FeedCard
               title={`4. ${FEED_ORDER[3]}`}
@@ -410,8 +461,9 @@ function App() {
               summaryKeys={[]}
               locationCount={runData?.feeds.locations?.count ?? 0}
               locationNames={locationOptions.slice(0, 20).map((location) => location.name)}
-              revealData={isFeedsReady}
-              statusOverride={runFailed ? 'failed' : isFeedsReady ? 'complete' : 'running'}
+              revealData={isFeedsReady && locationsReady}
+              statusOverride={runFailed ? 'failed' : isFeedsReady && locationsReady ? 'complete' : 'running'}
+              loadingTexts={FEED_LOADING_TEXT.locations}
             />
           </div>
           <button
@@ -547,6 +599,7 @@ function FeedCard({
   locationNames = [],
   revealData = true,
   statusOverride,
+  loadingTexts = ['Fetching', 'Analyzing'],
 }: {
   title: string
   feed: FeedBlob | LocationFeed | undefined
@@ -556,14 +609,18 @@ function FeedCard({
   locationNames?: string[]
   revealData?: boolean
   statusOverride?: string
+  loadingTexts?: readonly string[]
 }) {
   const data = feed?.data as Record<string, unknown> | undefined
   const displayStatus = statusOverride ?? feed?.status ?? 'pending'
+  const placeholderText =
+    loadingTexts[Math.floor(Date.now() / 5000) % Math.max(loadingTexts.length, 1)] || 'Loading'
+  const chipLabel = revealData ? displayStatus : placeholderText
   return (
     <article className="pmg-panel p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-medium">{title}</h3>
-        <span className={`pmg-status-chip ${statusChipClass(displayStatus)}`}>{displayStatus}</span>
+        <span className={`pmg-status-chip ${statusChipClass(displayStatus)}`}>{chipLabel}</span>
       </div>
       {typeof locationCount === 'number' ? (
         <p className="mt-2 text-sm text-[var(--pmg-muted)]">Location count: {locationCount}</p>
@@ -573,11 +630,7 @@ function FeedCard({
           Warning: feed mentions API key or unavailable text.
         </p>
       ) : null}
-      {!revealData ? (
-        <p className="mt-3 text-sm text-[var(--pmg-muted)]">
-          Feed is running. Live output will appear once all feeds are ready.
-        </p>
-      ) : (
+      {!revealData ? null : (
         <>
           <div className="mt-3 space-y-1 text-sm">
             {summaryKeys.map((key) => (
