@@ -1,6 +1,8 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { CampaignAnalytics } from './CampaignAnalytics'
 
 type Step = 1 | 2 | 3 | 4
+type Page = 'wizard' | 'analytics'
 
 type FeedBlob = { status: string; data: unknown } | null
 
@@ -137,6 +139,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function App() {
+  const [page, setPage] = useState<Page>('wizard')
   const [step, setStep] = useState<Step>(1)
   const [brand, setBrand] = useState('')
   const [campaign, setCampaign] = useState('')
@@ -357,6 +360,25 @@ function App() {
         </p>
       </section>
 
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setPage('wizard')}
+          className={page === 'wizard' ? 'pmg-button-primary px-4 py-2 text-sm font-medium' : 'pmg-button-secondary px-4 py-2 text-sm'}
+        >
+          Wizard
+        </button>
+        <button
+          type="button"
+          onClick={() => setPage('analytics')}
+          className={page === 'analytics' ? 'pmg-button-primary px-4 py-2 text-sm font-medium' : 'pmg-button-secondary px-4 py-2 text-sm'}
+        >
+          Campaign Analytics
+        </button>
+      </div>
+
+      {page === 'wizard' && (
+        <>
       <div className="mt-6 flex flex-wrap gap-2">
         {STEPS.map((label, index) => {
           const current = index + 1 === step
@@ -694,6 +716,12 @@ function App() {
             Start over
           </button>
         </section>
+      )}
+        </>
+      )}
+
+      {page === 'analytics' && (
+        <div className="mt-6"><CampaignAnalytics /></div>
       )}
     </main>
   )
