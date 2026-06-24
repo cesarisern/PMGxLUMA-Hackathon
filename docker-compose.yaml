@@ -23,8 +23,6 @@ services:
       BACKEND_UPSTREAM: backend:${BACKEND_PORT:-8002}
     depends_on:
       - backend
-    labels:
-      - "coolify.traefik.middlewares=audiostack-sso-errors@file,audiostack-sso@file"
 
 volumes:
   app_data:
