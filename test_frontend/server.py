@@ -116,8 +116,8 @@ def _pipeline_worker(job_id: str, brand_url: str, campaign: str) -> None:
                 emit("video_error", "Video skipped: no audio available.")
                 return
             try:
-                emit("video_start", "Generating Luma video clip and combining with each audio version…")
-                results = generate_video_from_image.run(image_url[0])
+                emit("video_start", "Generating 3 Luma clips and assembling polished ad video…")
+                results = generate_video_from_image.run(image_url[0], brand_url=brand_url)
                 video_result[0] = results
                 complete = sum(1 for r in results if r.get("status") == "complete")
                 emit("video_done", f"{complete} of {len(results)} videos ready", results)

@@ -6,6 +6,7 @@ import re
 import httpx
 from anthropic import Anthropic
 from feeds import parse_json
+from feeds import colours as _colours
 
 SYSTEM = "Extract brand information from the provided content. Output only valid JSON. No commentary."
 
@@ -83,5 +84,9 @@ def fetch(client: Anthropic, source: str) -> dict:
     if resolved_url:
         corpus["brand_url"] = resolved_url
     corpus.setdefault("brand_url", "")
+
+    effective_url = corpus.get("brand_url") or (source if _looks_like_url(source) else "")
+    corpus["dominant_colours"] = _colours.extract(effective_url)
+
     print(f"[brand] Done — {corpus.get('brand_name')}")
     return corpus
