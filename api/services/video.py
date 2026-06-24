@@ -66,7 +66,7 @@ def generate(
         tmp_path = Path(f.name)
 
     try:
-        return generate_video_from_image.run(
+        results = generate_video_from_image.run(
             image_url,
             tmp_path,
             brand_url,
@@ -76,3 +76,6 @@ def generate(
         raise RuntimeError(f"Video generation failed: {exc}") from exc
     finally:
         tmp_path.unlink(missing_ok=True)
+
+    db.save_video_outputs(run_id, results)
+    return results

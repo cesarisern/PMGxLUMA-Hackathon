@@ -9,17 +9,18 @@ from services import brief as brief_service
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
-def _build_prompt(context: dict, brand_colours: list[str] | None = None) -> str:
+def _build_prompt(context: dict, campaign: str = "", brand_colours: list[str] | None = None) -> str:
+    # Campaign description is the primary scene driver; context fields supplement it.
     parts = []
+    if campaign:
+        parts.append(campaign)
     if angle := context.get("campaign_angle"):
         parts.append(angle)
     if moment := context.get("live_moment"):
         parts.append(moment)
     if themes := context.get("narrative_themes"):
         parts.append(themes[0])
-    if stories := context.get("inspiring_stories"):
-        parts.append(stories[0])
-    scene = ". ".join(parts) if parts else str(context)
+    scene = ". ".join(dict.fromkeys(parts)) if parts else str(context)
 
     colour_hint = ""
     if brand_colours and len(brand_colours) >= 2:
@@ -32,7 +33,7 @@ def _build_prompt(context: dict, brand_colours: list[str] | None = None) -> str:
         colour_hint = f"Subtle {brand_colours[0]} ambient light glow on the corners. "
 
     return (
-        f"A premium lifestyle photograph depicting a relevant scene for this ad campaign: {scene}. "
+        f"A premium lifestyle photograph for this ad campaign: {scene}. "
         "Tall portrait composition (9:16), subject and action fill the entire frame edge to edge. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
         f"Cinematic colour grade. {colour_hint}"
@@ -52,11 +53,15 @@ def generate(run_id: int) -> dict[str, Any]:
     db.init()
     brand, context, _trends, _locations = brief_service.get_run_inputs(run_id)
 
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT campaign FROM runs WHERE id = ?", (run_id,)).fetchone()
+        campaign = row["campaign"] if row else ""
+
     dc = brand.get("dominant_colours") or {}
     brand_colours = dc.get("web_colours") or []
     target_audience = brand.get("target_audience", "")
 
-    prompt = _build_prompt(context, brand_colours)
+    prompt = _build_prompt(context, campaign, brand_colours)
     print(f"[image-service] Prompt: {prompt[:120]}...")
 
     from luma_agents import Luma

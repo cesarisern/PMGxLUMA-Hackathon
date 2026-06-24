@@ -407,18 +407,31 @@ async def generate_video(run_id: int, body: GenerateVideoRequest) -> dict[str, A
 def get_video_results(run_id: int) -> dict[str, Any]:
     with STATE_LOCK:
         state = VIDEO_STATE.get(run_id)
-    if not state:
-        return {"runId": run_id, "status": "idle", "results": []}
-    enriched = [
-        {
+
+    if state:
+        raw_results = state["results"]
+        status = state["status"]
+        error = state.get("error")
+    else:
+        # Fall back to DB for results from previous server sessions.
+        db_rows = db.get_video_outputs(run_id)
+        if not db_rows:
+            return {"runId": run_id, "status": "idle", "results": []}
+        raw_results = db_rows
+        all_statuses = {r["status"] for r in db_rows}
+        status = "complete" if all_statuses <= {"complete"} else "failed" if "failed" in all_statuses else "complete"
+        error = None
+
+    def _enrich(r: dict[str, Any]) -> dict[str, Any]:
+        filename = r.get("video_filename", "")
+        return {
             **r,
-            "videoUrl": f"/static/videos/{r['video_filename']}" if r.get("video_filename") else None,
+            "videoUrl": f"/static/videos/{filename}" if filename else None,
         }
-        for r in state["results"]
-    ]
+
     return {
         "runId": run_id,
-        "status": state["status"],
-        "results": enriched,
-        "error": state.get("error"),
+        "status": status,
+        "results": [_enrich(r) for r in raw_results],
+        "error": error,
     }
