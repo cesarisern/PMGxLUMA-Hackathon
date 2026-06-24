@@ -126,42 +126,24 @@ def scrape_logo(brand_url: str) -> bytes | None:
 
 def extract(brand_url: str) -> dict:
     """
-    Return dominant colour data for a brand.
+    Return dominant colour data extracted from the brand website's CSS.
 
     Result shape:
-      {
-        "logo_colours": ["#hex", ...],   # dominant colours from scraped homepage logo
-        "web_colours":  ["#hex", ...],   # colours extracted from website CSS
-      }
+      {"web_colours": ["#hex", ...]}
 
-    Both lists are empty on failure; callers should treat this as non-fatal.
+    Empty on failure; callers should treat this as non-fatal.
     """
-    logo_colours: list[str] = []
-    web_colours: list[str] = []
-
     if not brand_url:
-        return {"logo_colours": logo_colours, "web_colours": web_colours}
+        return {"web_colours": []}
 
     url = brand_url if "://" in brand_url else f"https://{brand_url}"
     html_bytes = _fetch_bytes(url)
     html = html_bytes.decode("utf-8", errors="replace") if html_bytes else ""
 
+    web_colours: list[str] = []
     if html:
         web_colours = _extract_css_colours(html)
         if web_colours:
             print(f"[colours] Web CSS colours: {web_colours[:5]}")
 
-    logo_url = _find_logo_url(html, url)
-    if logo_url:
-        print(f"[colours] Found logo at {logo_url}")
-        logo_bytes = _fetch_bytes(logo_url, max_bytes=2_000_000)
-        if logo_bytes:
-            try:
-                logo_colours = _dominant_from_image(logo_bytes)
-                print(f"[colours] Logo colours: {logo_colours}")
-            except Exception as exc:
-                print(f"[colours] Logo colour extraction failed: {exc}")
-    else:
-        print("[colours] No logo URL found on homepage")
-
-    return {"logo_colours": logo_colours, "web_colours": web_colours}
+    return {"web_colours": web_colours}
