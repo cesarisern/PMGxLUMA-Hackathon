@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable
 
@@ -22,7 +23,6 @@ def _headers() -> dict[str, str]:
 
 
 def _session() -> requests.Session:
-    # Bypass global HTTP(S)_PROXY env vars for AudioStack calls by default.
     session = requests.Session()
     session.trust_env = False
     return session
@@ -78,57 +78,64 @@ def generate_for_locations(
 ) -> list[dict[str, Any]]:
     db.init()
     headers = _headers()
-    direct_session = _session()
-    proxy_session = requests.Session()
     brand, context, trends, all_locations = brief_service.get_run_inputs(run_id)
     selected = [loc for loc in all_locations if loc["name"] in set(location_names)]
     if not selected:
         raise ValueError("No selected locations were found in this run.")
 
-    results: list[dict[str, Any]] = []
+    # Signal all locations as running immediately so the UI renders all rows at once.
     for loc in selected:
+        payload = brief_service.make_brief(brand, context, trends, loc)
+        if progress_cb:
+            progress_cb({
+                "location": loc["name"],
+                "status": "running",
+                "request": {"url": f"{BASE}/creator/brief", "method": "POST", "body": payload},
+            })
+
+    def _process_one(loc: dict[str, Any]) -> dict[str, Any]:
         payload = brief_service.make_brief(brand, context, trends, loc)
         result: dict[str, Any] = {
             "location": loc["name"],
             "status": "running",
             "request": {"url": f"{BASE}/creator/brief", "method": "POST", "body": payload},
         }
-        if progress_cb:
-            progress_cb(result)
+        direct = _session()
+        proxy = requests.Session()
         try:
             try:
-                audioform_id, submit_raw = _submit_brief(direct_session, payload, headers)
-                poll_data = _poll(direct_session, audioform_id, headers)
+                audioform_id, submit_raw = _submit_brief(direct, payload, headers)
+                poll_data = _poll(direct, audioform_id, headers)
             except requests.exceptions.RequestException:
-                # Fallback to environment proxy configuration when direct networking is unavailable.
-                audioform_id, submit_raw = _submit_brief(proxy_session, payload, headers)
-                poll_data = _poll(proxy_session, audioform_id, headers)
-            status = poll_data["status"]
-            result.update(
-                {
-                    "status": status,
-                    "submitResponse": {"audioformId": audioform_id, "raw": submit_raw},
-                    "pollResponse": poll_data,
-                    "audioUrl": poll_data.get("deliveryUri"),
-                    "audioform_id": audioform_id,
-                    "audio_url": poll_data.get("deliveryUri") or "",
-                }
-            )
+                audioform_id, submit_raw = _submit_brief(proxy, payload, headers)
+                poll_data = _poll(proxy, audioform_id, headers)
+            result.update({
+                "status": poll_data["status"],
+                "submitResponse": {"audioformId": audioform_id, "raw": submit_raw},
+                "pollResponse": poll_data,
+                "audioUrl": poll_data.get("deliveryUri"),
+                "audioform_id": audioform_id,
+                "audio_url": poll_data.get("deliveryUri") or "",
+            })
         except Exception as exc:
-            result.update(
-                {
-                    "status": "error",
-                    "error": str(exc),
-                    "submitResponse": None,
-                    "pollResponse": None,
-                    "audioUrl": None,
-                    "audioform_id": None,
-                    "audio_url": "",
-                }
-            )
-        results.append(result)
+            result.update({
+                "status": "error",
+                "error": str(exc),
+                "submitResponse": None,
+                "pollResponse": None,
+                "audioUrl": None,
+                "audioform_id": None,
+                "audio_url": "",
+            })
         if progress_cb:
             progress_cb(result)
+        return result
+
+    results: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=len(selected)) as exe:
+        futures = [exe.submit(_process_one, loc) for loc in selected]
+        for future in as_completed(futures):
+            results.append(future.result())
 
     db_rows = [
         {

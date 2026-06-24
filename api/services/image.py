@@ -43,7 +43,7 @@ def _build_prompt(context: dict, brand_colours: list[str] | None = None) -> str:
     )
 
 
-def generate_image(run_id: int) -> dict[str, Any]:
+def generate(run_id: int) -> dict[str, Any]:
     """Generate a Luma image for this run.
 
     Returns a dict with imageUrl, prompt, and the context data needed to

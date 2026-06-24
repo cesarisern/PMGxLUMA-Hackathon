@@ -4,9 +4,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # Ensure repo root modules (db.py, fetch_feeds.py) are importable no matter where uvicorn starts.
@@ -23,6 +26,9 @@ from services import video as video_service
 
 load_dotenv(dotenv_path="../.env", override=True)
 
+VIDEO_DIR = ROOT_DIR / "data" / "videos"
+VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(title="Dynamic Voice API")
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/static/videos", StaticFiles(directory=str(VIDEO_DIR)), name="static_videos")
 
 RUNS: dict[int, dict[str, Any]] = {}
 AUDIO_STATE: dict[int, dict[str, Any]] = {}
@@ -42,6 +49,10 @@ STATE_LOCK = threading.Lock()
 class RunCreateRequest(BaseModel):
     brand: str = Field(min_length=3)
     campaign: str = Field(min_length=3)
+
+
+class SuggestCampaignRequest(BaseModel):
+    brand: str = Field(min_length=3)
 
 
 class GenerateRequest(BaseModel):
@@ -63,6 +74,79 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/suggest-campaign-name")
+async def suggest_campaign_name(body: SuggestCampaignRequest) -> dict[str, str]:
+    import os
+    import re
+    from anthropic import Anthropic
+    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    response = await asyncio.to_thread(
+        lambda: client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system=(
+                "You write campaign descriptions for localized audio/radio ads. "
+                "Output exactly 2–3 plain sentences with no headers, bullets, or markdown. "
+                "Be specific: campaign moment, target audience, and key message."
+            ),
+            messages=[{
+                "role": "user",
+                "content": f"Brand: {body.brand}\n\nWrite a campaign description.",
+            }],
+        )
+    )
+    text = re.sub(r"^#+\s.*\n?", "", response.content[0].text, flags=re.MULTILINE).strip()
+    return {"suggestion": text}
+
+
+@app.get("/proxy-download")
+async def proxy_download(url: str = Query(...), filename: str = Query(default="download")) -> Response:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        resp = await client.get(url)
+    return Response(
+        content=resp.content,
+        media_type=resp.headers.get("content-type", "application/octet-stream"),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+async def _maybe_start_video(run_id: int) -> None:
+    """Auto-start video generation when both audio and image+clips are ready."""
+    with STATE_LOCK:
+        audio_done = AUDIO_STATE.get(run_id, {}).get("status") == "complete"
+        img_st = dict(IMAGE_STATE.get(run_id, {}))
+        clips_done = img_st.get("status") == "complete"
+        already_started = run_id in VIDEO_STATE
+
+        if audio_done and clips_done and not already_started:
+            VIDEO_STATE[run_id] = {"status": "running", "results": [], "error": None}
+            should_start = True
+        else:
+            should_start = False
+
+    if not should_start:
+        return
+
+    image_url: str = img_st.get("imageUrl", "")
+    clip_urls: list[str] | None = img_st.get("clipUrls")
+    brand_url: str = RUNS.get(run_id, {}).get("brand", "")
+
+    async def _video_task() -> None:
+        try:
+            results = await asyncio.to_thread(
+                video_service.generate, run_id, image_url, brand_url, clip_urls
+            )
+            with STATE_LOCK:
+                VIDEO_STATE[run_id]["status"] = "complete"
+                VIDEO_STATE[run_id]["results"] = results
+        except Exception as exc:
+            with STATE_LOCK:
+                VIDEO_STATE[run_id]["status"] = "failed"
+                VIDEO_STATE[run_id]["error"] = str(exc)
+
+    asyncio.create_task(_video_task())
+
+
 @app.post("/runs")
 async def create_run(body: RunCreateRequest) -> dict[str, Any]:
     brand = body.brand.strip()
@@ -75,6 +159,7 @@ async def create_run(body: RunCreateRequest) -> dict[str, Any]:
         RUNS[run_id] = {"status": "running", "brand": brand, "campaign": campaign, "error": None}
 
     async def run_task() -> None:
+        # Stage 1: feeds
         try:
             await asyncio.to_thread(feeds_service.run_fetch_pipeline, brand, campaign)
             with STATE_LOCK:
@@ -85,6 +170,48 @@ async def create_run(body: RunCreateRequest) -> dict[str, Any]:
                 if run_id in RUNS:
                     RUNS[run_id]["status"] = "failed"
                     RUNS[run_id]["error"] = str(exc)
+            return
+
+        # Stage 2: image (auto-triggered after feeds)
+        with STATE_LOCK:
+            IMAGE_STATE[run_id] = {
+                "status": "running",
+                "imageUrl": None,
+                "clipUrls": None,
+                "prompt": None,
+                "error": None,
+            }
+        try:
+            img_result = await asyncio.to_thread(image_service.generate, run_id)
+            with STATE_LOCK:
+                IMAGE_STATE[run_id]["imageUrl"] = img_result["imageUrl"]
+                IMAGE_STATE[run_id]["prompt"] = img_result["prompt"]
+                IMAGE_STATE[run_id]["status"] = "generating_clips"
+        except Exception as exc:
+            with STATE_LOCK:
+                IMAGE_STATE[run_id]["status"] = "failed"
+                IMAGE_STATE[run_id]["error"] = str(exc)
+            return
+
+        # Stage 3: clips (auto-triggered after image)
+        try:
+            clip_urls = await asyncio.to_thread(
+                image_service.generate_clips,
+                img_result["imageUrl"],
+                img_result["context"],
+                img_result["brand_colours"],
+                img_result.get("target_audience", ""),
+            )
+            with STATE_LOCK:
+                IMAGE_STATE[run_id]["status"] = "complete"
+                IMAGE_STATE[run_id]["clipUrls"] = clip_urls
+        except Exception as exc:
+            with STATE_LOCK:
+                IMAGE_STATE[run_id]["status"] = "clips_failed"
+                IMAGE_STATE[run_id]["error"] = str(exc)
+            return
+
+        await _maybe_start_video(run_id)
 
     asyncio.create_task(run_task())
     return {"runId": run_id, "status": "running"}
@@ -162,6 +289,9 @@ async def generate_audio(run_id: int, body: GenerateRequest) -> dict[str, Any]:
             with STATE_LOCK:
                 AUDIO_STATE[run_id]["status"] = "failed"
                 AUDIO_STATE[run_id]["error"] = str(exc)
+            return
+
+        await _maybe_start_video(run_id)
 
     asyncio.create_task(run_audio_task())
     return {"runId": run_id, "status": "running"}
@@ -193,9 +323,8 @@ async def generate_image(run_id: int) -> dict[str, Any]:
         }
 
     async def run_image_task() -> None:
-        # Phase 1: generate the static image.
         try:
-            img_result = await asyncio.to_thread(image_service.generate_image, run_id)
+            img_result = await asyncio.to_thread(image_service.generate, run_id)
             with STATE_LOCK:
                 IMAGE_STATE[run_id]["imageUrl"] = img_result["imageUrl"]
                 IMAGE_STATE[run_id]["prompt"] = img_result["prompt"]
@@ -206,7 +335,6 @@ async def generate_image(run_id: int) -> dict[str, Any]:
                 IMAGE_STATE[run_id]["error"] = str(exc)
             return
 
-        # Phase 2: generate Luma video clips from the image (runs while audio is in progress).
         try:
             clip_urls = await asyncio.to_thread(
                 image_service.generate_clips,
@@ -222,6 +350,8 @@ async def generate_image(run_id: int) -> dict[str, Any]:
             with STATE_LOCK:
                 IMAGE_STATE[run_id]["status"] = "clips_failed"
                 IMAGE_STATE[run_id]["error"] = str(exc)
+
+        await _maybe_start_video(run_id)
 
     asyncio.create_task(run_image_task())
     return {"runId": run_id, "status": "running"}
@@ -248,11 +378,8 @@ async def generate_video(run_id: int, body: GenerateVideoRequest) -> dict[str, A
     if not body.imageUrl:
         raise HTTPException(status_code=400, detail="imageUrl is required")
 
-    # Use pre-generated clips if the image task already completed them.
     with STATE_LOCK:
         clip_urls = IMAGE_STATE.get(run_id, {}).get("clipUrls")
-
-    with STATE_LOCK:
         VIDEO_STATE[run_id] = {"status": "running", "results": [], "error": None}
 
     async def run_video_task() -> None:
@@ -282,9 +409,16 @@ def get_video_results(run_id: int) -> dict[str, Any]:
         state = VIDEO_STATE.get(run_id)
     if not state:
         return {"runId": run_id, "status": "idle", "results": []}
+    enriched = [
+        {
+            **r,
+            "videoUrl": f"/static/videos/{r['video_filename']}" if r.get("video_filename") else None,
+        }
+        for r in state["results"]
+    ]
     return {
         "runId": run_id,
         "status": state["status"],
-        "results": state["results"],
+        "results": enriched,
         "error": state.get("error"),
     }
