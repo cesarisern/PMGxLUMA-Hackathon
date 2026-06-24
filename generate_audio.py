@@ -107,7 +107,7 @@ def run(run_id: int = None, limit: int = None) -> list:
     context = json.loads(conn.execute("SELECT data FROM campaign_context WHERE run_id=? ORDER BY id DESC LIMIT 1", (run_id,)).fetchone()["data"])
     trends  = json.loads(conn.execute("SELECT data FROM trend_signal WHERE run_id=? ORDER BY id DESC LIMIT 1", (run_id,)).fetchone()["data"])
 
-    rows = conn.execute("SELECT name, cta_suffix FROM locations WHERE run_id=? ORDER BY id", (run_id,)).fetchall()
+    rows = conn.execute("SELECT name, cta_suffix, url FROM locations WHERE run_id=? ORDER BY id", (run_id,)).fetchall()
     locations = [dict(r) for r in rows]
     if limit:
         locations = locations[:limit]
@@ -127,14 +127,24 @@ def run(run_id: int = None, limit: int = None) -> list:
     def make_brief(loc: dict) -> dict:
         # `sounds` is omitted on purpose — the agentic engine then recommends
         # and adds an appropriate background track itself.
+        local_url = (loc.get("url") or "").strip()
+        localized_description = (
+            f"{description} "
+            f"Make sure the ad appeals to a local audience in {loc.get('name', '')} "
+            f"and drives listeners to visit the local association"
+            f"{' at ' + local_url if local_url else ''}."
+        ).strip()
+        cta = f"{brand.get('cta', '')} — {loc['cta_suffix']}"
+        if local_url:
+            cta = f"{cta} — Visit your local association: {local_url}"
         return {
             "audioformVersion": "2",
             "brief": {
                 "script": {
                     "productName":        brand["brand_name"],
-                    "productDescription": description,
+                    "productDescription": localized_description,
                     "lang":               "en",
-                    "callToAction":       f"{brand.get('cta', '')} — {loc['cta_suffix']}",
+                    "callToAction":       cta,
                     "targetAudience":     brand.get("target_audience", ""),
                     "toneOfScript":       tone,
                 },
