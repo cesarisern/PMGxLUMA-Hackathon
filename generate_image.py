@@ -32,7 +32,7 @@ def build_prompt(context: str | dict) -> str:
     return (
         f"A premium lifestyle photograph depicting a relevant scene for this ad campaign: {scene}. "
         "Square composition, subject fills the upper three-quarters of the frame, "
-        "open negative space in the lower quarter. "
+        "lower quarter is open negative space filled with a rich atmospheric gradient or deep colour wash — never plain white, never grey. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
         "Cinematic colour grade, rich and saturated tone. "
         "Natural directional sunlight, late afternoon. "
