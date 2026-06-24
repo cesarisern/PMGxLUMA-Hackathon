@@ -168,7 +168,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+type Page = 'wizard' | 'analytics'
+
 function App() {
+  const [page, setPage] = useState<Page>('wizard')
   const [step, setStep] = useState<Step>(1)
   const [briefTab, setBriefTab] = useState<BriefTab>('brief')
   const [brand, setBrand] = useState('')
@@ -408,22 +411,44 @@ function App() {
         </p>
       </section>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {STEPS.map((label, index) => {
-          const current = index + 1 === step
-          const complete = index + 1 < step
-          return (
-            <div
-              key={label}
-              className={`pmg-step ${current ? 'pmg-step-current' : complete ? 'pmg-step-complete' : 'pmg-step-idle'}`}
-            >
-              {index + 1}. {label}
-            </div>
-          )
-        })}
+      <div className="mt-6 flex gap-2">
+        {(['wizard', 'analytics'] as Page[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPage(p)}
+            className={`pmg-step ${page === p ? 'pmg-step-current' : 'pmg-step-idle'}`}
+            style={{ cursor: 'pointer' }}
+          >
+            {p === 'wizard' ? 'Wizard' : 'Campaign Analytics'}
+          </button>
+        ))}
       </div>
 
-      {step === 1 && (
+      {page === 'analytics' && (
+        <div className="mt-6">
+          <CampaignAnalytics />
+        </div>
+      )}
+
+      {page === 'wizard' && (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {STEPS.map((label, index) => {
+            const current = index + 1 === step
+            const complete = index + 1 < step
+            return (
+              <div
+                key={label}
+                className={`pmg-step ${current ? 'pmg-step-current' : complete ? 'pmg-step-complete' : 'pmg-step-idle'}`}
+              >
+                {index + 1}. {label}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {page === 'wizard' && step === 1 && (
         <section className="pmg-panel mt-8 p-6">
           <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 1 - Campaign input</h2>
           <form className="mt-4 space-y-4" onSubmit={onSubmitRun}>
@@ -589,7 +614,7 @@ function App() {
         </section>
       )}
 
-      {step === 3 && (
+      {page === 'wizard' && step === 3 && (
         <section className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className="pmg-panel p-4">
             <h2 className="text-lg font-medium text-[var(--pmg-text)]">Step 3 - Select locations</h2>
