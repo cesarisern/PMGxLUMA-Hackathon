@@ -36,12 +36,44 @@ def _headers() -> dict:
     return {"x-api-key": key, "x-assume-org": org}
 
 
-def _poll(af_id: str, headers: dict, timeout: int = 180) -> str | None:
+def _poll(af_id: str, headers: dict, timeout: int = 180) -> dict | None:
+    """Poll until complete. Returns a dict with url, script_text, tts_start, tts_duration."""
     h = {**headers, "version": "4"}
     for _ in range(timeout // 3):
         r = requests.get(f"{BASE}/audioforms/{af_id}", headers=h)
         if r.status_code == 200:
-            return r.json()["data"].get("result", {}).get("delivery", {}).get("uri")
+            result = r.json()["data"].get("result", {})
+            url = result.get("delivery", {}).get("uri")
+            if not url:
+                return None
+
+            # Extract script text from the first tts asset in the result.
+            script_text = ""
+            tts_start = 0.0
+            tts_duration = 0.0
+            assets = result.get("assets", {})
+            tts_key = next((k for k, v in assets.items() if v.get("type") == "tts"), None)
+            if tts_key:
+                script_text = assets[tts_key].get("text", "")
+
+            # The clip position and duration tell us exactly when in the final
+            # mixed audio the voiceover starts and how long it runs.
+            try:
+                clip = (
+                    result["production"]["arrangement"]["sections"][0]
+                    ["layers"][0]["clips"][0]
+                )
+                tts_start = clip.get("position", 0.0)
+                tts_duration = clip.get("duration", 0.0)
+            except (KeyError, IndexError):
+                pass
+
+            return {
+                "url":          url,
+                "script_text":  script_text,
+                "tts_start":    tts_start,
+                "tts_duration": tts_duration,
+            }
         elif r.status_code == 202:
             time.sleep(3)
         else:
@@ -137,16 +169,19 @@ def run(run_id: int = None, limit: int = None) -> list:
     results = []
 
     def poll_one(loc_name: str, af_id: str) -> dict:
-        url = _poll(af_id, headers)
-        if url:
-            print(f"[audio] ✓ {loc_name:30} {url}")
+        data = _poll(af_id, headers)
+        if data:
+            print(f"[audio] ✓ {loc_name:30} {data['url']}")
         else:
             print(f"[audio] ✗ {loc_name} timed out")
         return {
             "location":     loc_name,
             "audioform_id": af_id,
-            "audio_url":    url or "",
-            "status":       "complete" if url else "timeout",
+            "audio_url":    data["url"] if data else "",
+            "script_text":  data.get("script_text", "") if data else "",
+            "tts_start":    data.get("tts_start", 0.0) if data else 0.0,
+            "tts_duration": data.get("tts_duration", 0.0) if data else 0.0,
+            "status":       "complete" if data else "timeout",
         }
 
     with ThreadPoolExecutor(max_workers=10) as pool:
