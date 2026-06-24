@@ -229,6 +229,26 @@ def _generate_luma_clips(image_url: str, prompts: list[str]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Public helper — generate clips without assembling (for parallel pre-generation)
+# ---------------------------------------------------------------------------
+
+def generate_clips(
+    image_url: str,
+    campaign_ctx: dict,
+    brand_colours: list[str],
+    target_audience: str = "",
+) -> list[str]:
+    """Generate Luma clips and return their URLs, without downloading or assembling.
+
+    Call this before run() to pre-generate clips while audio is being produced.
+    Pass the returned URLs as pregenerated_clip_urls to run() to skip re-generation.
+    """
+    prompts = _build_luma_prompts(campaign_ctx, brand_colours, target_audience)
+    print(f"[video] Pre-generating {N_CLIPS} Luma clips in parallel…")
+    return _generate_luma_clips(image_url, prompts)
+
+
+# ---------------------------------------------------------------------------
 # Video assembly stages
 # ---------------------------------------------------------------------------
 
@@ -403,7 +423,12 @@ def _combine(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run(image_url: str, audio_outputs_path: Path = AUDIO_OUTPUTS_FILE, brand_url: str = "") -> list:
+def run(
+    image_url: str,
+    audio_outputs_path: Path = AUDIO_OUTPUTS_FILE,
+    brand_url: str = "",
+    pregenerated_clip_urls: list[str] | None = None,
+) -> list:
     VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
     if not audio_outputs_path.exists():
@@ -427,9 +452,13 @@ def run(image_url: str, audio_outputs_path: Path = AUDIO_OUTPUTS_FILE, brand_url
     font_path  = _ensure_font()
     logo_bytes = _scrape_brand_logo(effective_brand_url)
 
-    prompts = _build_luma_prompts(campaign_ctx, brand_colours, target_audience)
-    print(f"[video] Generating {N_CLIPS} Luma clips in parallel…")
-    clip_urls = _generate_luma_clips(image_url, prompts)
+    if pregenerated_clip_urls:
+        clip_urls = pregenerated_clip_urls
+        print(f"[video] Using {len(clip_urls)} pre-generated Luma clip URLs.")
+    else:
+        prompts = _build_luma_prompts(campaign_ctx, brand_colours, target_audience)
+        print(f"[video] Generating {N_CLIPS} Luma clips in parallel…")
+        clip_urls = _generate_luma_clips(image_url, prompts)
 
     raw_clips: list[Path] = []
     for i, url in enumerate(clip_urls):
