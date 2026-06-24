@@ -25,8 +25,8 @@ Usage:
 SOCCER_PLAYERS = {
     "California": 321000, "Texas": 246863, "New York": 183218, "Massachusetts": 167402,
     "Pennsylvania": 163423, "New Jersey": 150978, "Virginia": 144197, "Florida": 113777,
-    "Washington": 110170, "Michigan": 92022, "Ohio": 91505, "Illinois": 80652,
-    "Georgia": 78943, "Minnesota": 76668, "Colorado": 73313, "North Carolina": 72999,
+    "Washington": 110170, "Maryland": 97268, "Michigan": 92022, "Ohio": 91505,
+    "Illinois": 80652, "Georgia": 78943, "Minnesota": 76668, "Colorado": 73313, "North Carolina": 72999,
     "Utah": 62972, "Indiana": 61567, "Wisconsin": 56474, "Arizona": 51672,
     "Tennessee": 49307, "Kentucky": 37621, "Oklahoma": 36222, "Iowa": 32113,
     "Missouri": 30147, "Louisiana": 25782, "Kansas": 25258, "Arkansas": 25104,
@@ -39,12 +39,17 @@ SOCCER_PLAYERS = {
 
 # ── Dataset 2: NSCH 2023 youth-sports participation rate (%) ──────────────────
 # Source: U.S. Census Bureau, National Survey of Children's Health, 2023.
-# Only verified values included — NOT fabricated for unlisted states.
+# Only verified values — NOT fabricated. Values marked ~ are reported rounded
+# to the nearest point in the source; exact ones are from the USAFacts dataset.
 NSCH_RATE = {
+    # exact (USAFacts 2023)
     "Vermont": 71.5, "South Dakota": 68.8, "New Hampshire": 67.6,
     "Massachusetts": 65.3, "Iowa": 64.8,
     "Texas": 49.0, "West Virginia": 48.6, "Florida": 48.4,
     "Delaware": 47.7, "Nevada": 43.3,
+    # rounded (Project Play "reached 63% goal" list, 2023)
+    "Minnesota": 65.0, "Colorado": 65.0, "North Dakota": 64.0, "Nebraska": 64.0,
+    "Rhode Island": 63.0, "Wyoming": 63.0, "Maine": 63.0, "Montana": 63.0,
 }
 NATIONAL_RATE = 55.4  # NSCH 2023, ages 6–17
 
@@ -66,6 +71,50 @@ REGION_NAME = {"NE": "Northeast", "MW": "Midwest", "S": "South", "W": "West"}
 
 def bar(value, vmax, width=30):
     return "█" * max(1, int(value / vmax * width)) if value else ""
+
+
+def priority_list():
+    """Rank every state by priority = audience size × conversion headroom.
+
+    score = volume_norm (0-100) × rate_factor
+      rate_factor = NATIONAL_RATE / rate   (low rate → >1 boost, high rate → <1)
+      unknown rate → factor 1.0 (neutral; flagged)
+    """
+    vmax = max(SOCCER_PLAYERS.values())
+    rows = []
+    for state, n in SOCCER_PLAYERS.items():
+        vol_norm = n / vmax * 100
+        rate = NSCH_RATE.get(state)
+        factor = (NATIONAL_RATE / rate) if rate else 1.0
+        rows.append({
+            "state": state, "players": n, "rate": rate,
+            "score": round(vol_norm * factor, 1),
+        })
+    rows.sort(key=lambda r: -r["score"])
+
+    def tier(n, rate):
+        hi_vol = n >= 100_000
+        if rate is None:
+            return "P1 launch" if hi_vol else ("P2 core" if n >= 50_000 else
+                   ("P3 secondary" if n >= 25_000 else "P4 long-tail"))
+        if hi_vol and rate < NATIONAL_RATE: return "P1 launch (upside)"
+        if hi_vol:                          return "P1 showcase"
+        if rate >= NATIONAL_RATE:           return "efficient/skip"
+        return "P2 core" if n >= 50_000 else ("P3 secondary" if n >= 25_000 else "P4 long-tail")
+
+    print("\n" + "=" * 70)
+    print("  FULL PRIORITY LIST — all states ranked by campaign priority score")
+    print("  score = audience volume × conversion headroom (low rate = more room)")
+    print("=" * 70)
+    print(f"\n  {'#':>2}  {'State':16} {'Players':>9}  {'Rate':>6}  {'Score':>6}  Tier")
+    print("  " + "-" * 64)
+    for i, r in enumerate(rows, 1):
+        rate = f"{r['rate']:.1f}%" if r["rate"] else "  n/a "
+        print(f"  {i:>2}. {r['state']:16} {r['players']:>9,}  {rate:>6}  "
+              f"{r['score']:>6}  {tier(r['players'], r['rate'])}")
+    print(f"\n  Rate known for {sum(1 for r in rows if r['rate'])}/{len(rows)} states; "
+          f"the rest scored on volume alone (factor 1.0).")
+    return rows
 
 
 def main():
@@ -169,3 +218,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    priority_list()
