@@ -92,3 +92,6 @@ cd ui && npm run dev
     `python server.py`
     # then open 
     `http://localhost:8765`
+
+### Currently live at
+https://resonate.poc.audiostack.ai
