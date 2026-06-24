@@ -72,6 +72,18 @@ def init() -> None:
             status          TEXT,
             created_at      TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS video_outputs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id          INTEGER REFERENCES runs(id),
+            location        TEXT NOT NULL,
+            audioform_id    TEXT,
+            video_path      TEXT,
+            video_filename  TEXT,
+            status          TEXT NOT NULL,
+            error           TEXT,
+            created_at      TEXT NOT NULL
+        );
         """)
 
 
@@ -128,6 +140,25 @@ def save_audio_outputs(run_id: int, results: list) -> None:
                 "INSERT INTO audio_outputs (run_id, location, audioform_id, audio_url, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (run_id, r.get("location"), r.get("audioform_id"), r.get("audio_url"), r.get("status"), now),
             )
+
+
+def save_video_outputs(run_id: int, results: list) -> None:
+    now = _now()
+    with get_conn() as conn:
+        for r in results:
+            conn.execute(
+                "INSERT INTO video_outputs (run_id, location, audioform_id, video_path, video_filename, status, error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (run_id, r.get("location"), r.get("audioform_id"), r.get("video_path"), r.get("video_filename"), r.get("status", "unknown"), r.get("error"), now),
+            )
+
+
+def get_video_outputs(run_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT location, audioform_id, video_path, video_filename, status, error FROM video_outputs WHERE run_id = ? ORDER BY id",
+            (run_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def _now() -> str:
