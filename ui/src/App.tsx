@@ -420,7 +420,7 @@ function App() {
             className={`pmg-step ${page === p ? 'pmg-step-current' : 'pmg-step-idle'}`}
             style={{ cursor: 'pointer' }}
           >
-            {p === 'wizard' ? 'Wizard' : 'Campaign Analytics'}
+            {p === 'wizard' ? 'Campaign Content' : 'Targeting Recommendations'}
           </button>
         ))}
       </div>
