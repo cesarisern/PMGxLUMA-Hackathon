@@ -34,7 +34,7 @@ def _build_prompt(context: dict, campaign: str = "", brand_colours: list[str] | 
 
     return (
         f"A premium lifestyle photograph for this ad campaign: {scene}. "
-        "Tall portrait composition (9:16), subject and action fill the entire frame edge to edge. "
+        "Square composition (1:1), subject and action fill the entire frame edge to edge. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
         f"Cinematic colour grade. {colour_hint}"
         "Natural directional sunlight, late afternoon. "
@@ -66,7 +66,7 @@ def generate(run_id: int) -> dict[str, Any]:
 
     from luma_agents import Luma
     client = Luma()
-    generation = client.generations.create(prompt=prompt, aspect_ratio="9:16")
+    generation = client.generations.create(prompt=prompt, aspect_ratio="1:1")
 
     while generation.state not in ("completed", "failed"):
         time.sleep(2)
