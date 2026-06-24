@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "${BACKEND_PORT:-8002}:${BACKEND_PORT:-8002}"
+    environment:
+      BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
+      BACKEND_PORT: ${BACKEND_PORT:-8002}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JINA_API_KEY: ${JINA_API_KEY:-}
+      AUDIOSTACK_API_KEY: ${AUDIOSTACK_API_KEY:-}
+      AUDIOSTACK_ORG_ID: ${AUDIOSTACK_ORG_ID:-}
+      LUMA_AGENTS_API_KEY: ${LUMA_AGENTS_API_KEY:-}
+    volumes:
+      - app_data:/app/data
+      - app_fonts:/app/fonts
+
+  frontend:
+    build: ./ui
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    environment:
+      BACKEND_UPSTREAM: backend:${BACKEND_PORT:-8002}
+    depends_on:
+      - backend
+    labels:
+      - "coolify.traefik.middlewares=audiostack-sso-errors@file,audiostack-sso@file"
+
+volumes:
+  app_data:
+  app_fonts:

@@ -1,0 +1,10 @@
+.git
+.env
+.venv
+__pycache__
+*.pyc
+data
+fonts
+ui/node_modules
+ui/dist
+ui/.env
