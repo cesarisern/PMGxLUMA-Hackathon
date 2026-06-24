@@ -158,11 +158,15 @@ def run(cached: bool = False, args: argparse.Namespace = None) -> dict:
             sys.exit("[trends] No cached fallback. Run once without --cached to populate data/.")
 
     # Feed 4 — locations (scraped from brand website)
-    results["locations"] = locations.fetch(
-        client,
-        brand_url=brand_url,
-        brand_name=results["brand"].get("brand_name", ""),
-    )
+    try:
+        results["locations"] = locations.fetch(
+            client,
+            brand_url=brand_url,
+            brand_name=results["brand"].get("brand_name", ""),
+        )
+    except Exception as e:
+        print(f"[locations] Warning: Jina scrape failed ({e}) — using default city fallback")
+        results["locations"] = {}
 
     if not results["locations"].get("locations"):
         print("[locations] No locations found — applying default city fallback")

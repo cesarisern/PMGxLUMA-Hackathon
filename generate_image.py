@@ -12,9 +12,10 @@ load_dotenv()
 client = Luma()
 
 DATA_FILE = Path(__file__).parent / "data" / "campaign_context.json"
+BRAND_FILE = Path(__file__).parent / "data" / "brand_corpus.json"
 
 
-def build_prompt(context: str | dict) -> str:
+def build_prompt(context: str | dict, brand_colours: list[str] | None = None) -> str:
     if isinstance(context, dict):
         parts = []
         if angle := context.get("campaign_angle"):
@@ -29,12 +30,21 @@ def build_prompt(context: str | dict) -> str:
     else:
         scene = context
 
+    colour_hint = ""
+    if brand_colours and len(brand_colours) >= 2:
+        c1, c2 = brand_colours[0], brand_colours[1]
+        colour_hint = (
+            f"Subtle {c1} ambient light glow in the top-right corner and "
+            f"{c2} ambient light glow in the bottom-left corner. "
+        )
+    elif brand_colours:
+        colour_hint = f"Subtle {brand_colours[0]} ambient light glow on the corners. "
+
     return (
         f"A premium lifestyle photograph depicting a relevant scene for this ad campaign: {scene}. "
-        "Square composition, subject fills the upper three-quarters of the frame, "
-        "open negative space in the lower quarter. "
+        "Tall portrait composition (9:16), subject and action fill the entire frame edge to edge. "
         "85mm portrait compression, wide aperture bokeh, subject in sharp focus. "
-        "Cinematic colour grade, rich and saturated tone. "
+        f"Cinematic colour grade. {colour_hint}"
         "Natural directional sunlight, late afternoon. "
         "High contrast, photorealistic, premium lifestyle aesthetic. "
         "No visible brand logos, text, or markings on clothing or equipment. "
@@ -50,14 +60,26 @@ elif DATA_FILE.exists():
     context_value = json.loads(DATA_FILE.read_text())
     print(f"[image] Loaded campaign context from {DATA_FILE}")
 else:
-    sys.exit(f"Error: no context provided. Pass a description as an argument or run fetch_feeds.py first to generate {DATA_FILE}.")
+    sys.exit(
+        f"Error: no context provided. Pass a description as an argument or run "
+        f"fetch_feeds.py first to generate {DATA_FILE}."
+    )
 
-prompt_text = build_prompt(context_value)
+brand_colours: list[str] = []
+if BRAND_FILE.exists():
+    try:
+        corpus = json.loads(BRAND_FILE.read_text())
+        dc = corpus.get("dominant_colours") or {}
+        brand_colours = dc.get("logo_colours") or dc.get("web_colours") or []
+    except Exception:
+        pass
+
+prompt_text = build_prompt(context_value, brand_colours)
 print(f"[image] Prompt: {prompt_text}")
 
 generation = client.generations.create(
     prompt=prompt_text,
-    aspect_ratio="1:1",
+    aspect_ratio="9:16",
 )
 
 while generation.state not in ("completed", "failed"):

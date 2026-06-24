@@ -29,7 +29,13 @@ cd ui && npm run dev
   Ensure you have the required dependencies and environment variables
   configured:
 
-    # Install dependencies
+    # System dependency — ffmpeg must be installed before running video generation
+    # macOS:
+    `brew install ffmpeg`
+    # Ubuntu/Debian:
+    `apt install ffmpeg`
+
+    # Install Python dependencies
     `pip install -r requirements.txt`
     # Configure environment (copy and fill in your API keys)
     `cp .env.example .env`
@@ -70,6 +76,13 @@ cd ui && npm run dev
     You can also test by entering the context after the script - this will take precedence over the json as an input.
 
     `python generate_image.py "Nike advert for the world cup - highlight how Nike is supporting women and girls' sport participation with sponsored soccer camps across the US this summer"`
+
+  5. Video generation
+
+  Pass the image URL printed by generate_image.py. One 9:16 MP4 is produced
+  per audio version, with captions burned in. Outputs are saved to data/videos/.
+
+  `python generate_video_from_image.py <image_url>`
 
 
     ## For testing only

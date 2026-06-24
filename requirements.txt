@@ -3,3 +3,4 @@ anthropic
 pytrends
 python-dotenv
 luma_agents
+Pillow
